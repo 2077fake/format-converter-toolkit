@@ -262,7 +262,7 @@ class ConverterApp:
             cwid = cc.winfo_reqwidth()
             chgt = cc.winfo_reqheight()
             self._canvas.configure(scrollregion=self._canvas.bbox("all"))
-            x = max(cw // 2, cwid // 2)
+            x = cw // 2
             y = max(0, (ch - chgt) // 2) if chgt < ch else 0
             self._canvas.coords(self._canvas.cc_window, x, y)
 
