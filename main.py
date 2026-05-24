@@ -290,7 +290,8 @@ class ConverterApp:
 
         for i, task in enumerate(CONVERTERS):
             card = self._make_card(cc, task)
-            card.grid(row=i, column=0, pady=5)
+            card.grid(row=i, column=0, sticky=EW, pady=5)
+            cc.columnconfigure(0, weight=0, minsize=540)
 
         self._canvas.grid(row=0, column=0, sticky=NSEW)
         v_sb.grid(row=0, column=1, sticky=NS)
