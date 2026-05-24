@@ -249,32 +249,26 @@ class ConverterApp:
         v_sb = ttk.Scrollbar(sf, orient=VERTICAL, command=self._canvas.yview)
         h_sb = ttk.Scrollbar(sf, orient=HORIZONTAL, command=self._canvas.xview)
         cc = ttk.Frame(self._canvas)
-
-        cc.bind("<Configure>",
-                lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
         self._canvas.cc_window = self._canvas.create_window(
-            (0, 0), window=cc, anchor=NW, tags="c")
+            (0, 0), window=cc, anchor=N, tags="c")
         self._canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
 
-        # 内容垂直居中：当内容高度小于画布时，自动下移居中
-        def _center_vertically(event=None):
+        def _repos(event=None):
             if not self._canvas.winfo_exists():
                 return
+            cc.update_idletasks()
             cw = self._canvas.winfo_width()
             ch = self._canvas.winfo_height()
-            cc.update_idletasks()
-            content_h = cc.winfo_reqheight()
-            # 水平始终居中，垂直根据内容高度决定
-            if content_h < ch and content_h > 0:
-                y_offset = (ch - content_h) // 2
-                self._canvas.coords(self._canvas.cc_window, cw // 2, y_offset)
-            else:
-                self._canvas.coords(self._canvas.cc_window, cw // 2, 0)
-            self._canvas.itemconfig(self._canvas.cc_window, anchor=N)
+            cwid = cc.winfo_reqwidth()
+            chgt = cc.winfo_reqheight()
+            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+            x = max(cw // 2, cwid // 2)
+            y = max(0, (ch - chgt) // 2) if chgt < ch else 0
+            self._canvas.coords(self._canvas.cc_window, x, y)
 
-        self._canvas.bind("<Configure>", _center_vertically, add="+")
-        # 初始居中
-        self.root.after(100, _center_vertically)
+        cc.bind("<Configure>", _repos, add="+")
+        self._canvas.bind("<Configure>", _repos, add="+")
+        self.root.after(50, _repos)
 
         # 滚轮：纵向（检查 canvas 存活，避免关闭弹窗后报错）
         def _scroll_y(event, c=self._canvas):
