@@ -11,6 +11,20 @@
 | `md_to_pdf.py` | Markdown → PDF | `python md_to_pdf.py input.md` |
 | `pdf_to_md.py` | PDF → Markdown | `python pdf_to_md.py input.pdf` |
 
+## 🖥️ 桌面应用
+
+提供图形化界面，一键转换更方便：
+
+```bash
+# 安装依赖
+pip install -r requirements.txt
+
+# 启动桌面程序
+python main.py
+```
+
+> 界面支持 4 种转换方向的点选式操作，后台异步执行不卡顿。
+
 ---
 
 # ① md_to_docx — Markdown 转 Word
@@ -188,13 +202,14 @@ python md_to_pdf.py 笔记.md 整理好的笔记.pdf
 
 ```
 文档互转工具箱/
-├── md_to_docx.py       # Markdown → Word
-├── docx_to_md.py       # Word → Markdown
-├── md_to_pdf.py        # Markdown → PDF
-├── pdf_to_md.py        # PDF → Markdown
-├── requirements.txt    # 依赖清单
-├── README.md           # 本文件
-└── 测试示例.md         # 测试用 Markdown
+├── main.py              # 🖥️ 桌面应用入口
+├── md_to_docx.py        # Markdown → Word
+├── docx_to_md.py        # Word → Markdown
+├── md_to_pdf.py         # Markdown → PDF
+├── pdf_to_md.py         # PDF → Markdown
+├── requirements.txt     # 依赖清单
+├── README.md            # 本文件
+└── 测试示例.md          # 测试用 Markdown
 ```
 
 ---
@@ -239,6 +254,22 @@ add_elements_to_doc()   ← 写入 python-docx Word 文档
 | 表格 | `\| col \| col \|` | ✅ |
 | 行内公式 | `$...$` | ✅ |
 | 块级公式 | `$$...$$` | ✅ |
+
+## ➕ 添加新转换格式
+
+在 `main.py` 的 `CONVERTERS` 列表中添加一行即可在桌面应用中注册新的转换器：
+
+```python
+ConverterTask(
+    "HTML → Markdown",       # 显示名称
+    "\U0001f310\u27a1\U0001f4dd",  # emoji 图标
+    "将 HTML 文件转为 Markdown",    # 描述
+    ".html", ".md",           # 源/目标扩展名
+    html_to_md_function       # 你的转换函数(input_path, output_path)
+)
+```
+
+然后在 `md_to_docx.py` 中复用 `parse_markdown()` 解析器、`_simplify_tex()` 公式引擎等核心模块。
 
 ## 📜 许可
 
