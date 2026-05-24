@@ -25,6 +25,7 @@ CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_conf
 DEFAULT_CONFIG = {
     "theme": "flatly",
     "window_size": "medium",
+    "font_family": "Microsoft YaHei UI",
 }
 
 THEME_OPTIONS = [
@@ -35,6 +36,17 @@ THEME_OPTIONS = [
     ("cyborg",     "🤖 暗色 (cyborg)"),
     ("superhero",  "🦸 暗色 (superhero)"),
     ("solar",      "🌅 暗色 (solar)"),
+]
+
+FONT_OPTIONS = [
+    ("Microsoft YaHei UI",      "📝 微软雅黑 (默认)"),
+    ("SimSun",                  "📜 宋体"),
+    ("SimHei",                  "🖌️ 黑体"),
+    ("KaiTi",                   "🖋️ 楷体"),
+    ("DengXian",                "📏 等线"),
+    ("Microsoft JhengHei UI",   "🇹🇼 微軟正黑體"),
+    ("Segoe UI",                "🔤 Segoe UI"),
+    ("Arial",                   "🔤 Arial"),
 ]
 
 SIZE_PRESETS = {
@@ -137,44 +149,46 @@ class ConverterApp:
         ratio = w / 780.0
         return max(0.7, min(1.4, ratio))
 
+    @property
+    def _font(self) -> str:
+        """返回用户配置的界面字体"""
+        return self.config.get("font_family", "Microsoft YaHei UI")
+
     def _on_window_resize(self, event=None):
         """窗口大小变化时自适应调整字体/图标/折行"""
         if not hasattr(self, '_desc_labels') or not self._desc_labels:
             return
-        # 只在顶层窗口变化时处理
         if event and event.widget != self.root:
             return
 
         s = self._scale()
+        f = self._font
 
-        # 1) 标题字体
+        # 1) 标题
         if hasattr(self, '_heading_label') and self._heading_label:
             sz = max(14, min(24, int(18 * s)))
-            self._heading_label.configure(font=("Microsoft YaHei UI", sz, "bold"))
+            self._heading_label.configure(font=(f, sz, "bold"))
 
         # 2) 副标题
         if hasattr(self, '_subtitle_label') and self._subtitle_label:
             sz = max(8, min(13, int(10 * s)))
-            self._subtitle_label.configure(font=("Microsoft YaHei UI", sz))
+            self._subtitle_label.configure(font=(f, sz))
 
-        # 3) 卡片图标 + 标题 + 描述折行
+        # 3) 卡片
         pad = max(10, min(24, int(16 * s)))
-        for i, task in enumerate(CONVERTERS):
+        for i in range(len(CONVERTERS)):
             if i < len(self._icon_labels):
                 sz = max(14, min(26, int(18 * s)))
                 self._icon_labels[i].configure(font=("Segoe UI", sz))
             if i < len(self._name_labels):
                 sz = max(9, min(16, int(12 * s)))
-                self._name_labels[i].configure(font=("Microsoft YaHei UI", sz, "bold"))
+                self._name_labels[i].configure(font=(f, sz, "bold"))
             if i < len(self._desc_labels):
                 sz = max(7, min(12, int(9 * s)))
-                # 折行宽度 = 当前 canvas 宽度 - 边距
                 cw = self._canvas.winfo_width() - 80 if self._canvas.winfo_width() > 80 else 300
                 wrap = max(200, min(800, int(cw)))
-                self._desc_labels[i].configure(font=("Microsoft YaHei UI", sz),
-                                               wraplength=wrap)
+                self._desc_labels[i].configure(font=(f, sz), wraplength=wrap)
 
-        # 4) 卡片内边距
         for card in self._card_frames:
             try:
                 card.configure(padding=(pad, pad))
@@ -206,7 +220,7 @@ class ConverterApp:
         header.pack(fill=X, pady=(0, 4))
 
         self._heading_label = ttk.Label(header, text="📦 文档格式互转工具箱",
-                                        font=("Microsoft YaHei UI", 18, "bold"))
+                                        font=(self._font, 18, "bold"))
         self._heading_label.pack(side=LEFT)
 
         right = ttk.Frame(header)
@@ -222,7 +236,7 @@ class ConverterApp:
                    padding=(8, 2)).pack(side=RIGHT)
 
         self._subtitle_label = ttk.Label(main, text="选择一个转换方向，选取文件即可一键转换",
-                                         font=("Microsoft YaHei UI", 10),
+                                         font=(self._font, 10),
                                          foreground="#666")
         self._subtitle_label.pack(anchor=W, pady=(0, 16))
 
@@ -273,7 +287,7 @@ class ConverterApp:
         # ---- 底部状态 ----
         self.status_var = tk.StringVar(value="💡 点击上方卡片开始转换")
         self.status_lbl = ttk.Label(main, textvariable=self.status_var,
-                                    font=("Microsoft YaHei UI", 9),
+                                    font=(self._font, 9),
                                     bootstyle="secondary", padding=(14, 10))
         self.status_lbl.pack(fill=X, pady=(12, 0))
 
@@ -287,7 +301,7 @@ class ConverterApp:
         self._icon_labels.append(icon_lbl)
 
         name_lbl = ttk.Label(row, text=task.name,
-                             font=("Microsoft YaHei UI", 12, "bold"),
+                             font=(self._font, 12, "bold"),
                              foreground="#1a1a2e")
         name_lbl.pack(side=LEFT, padx=(10, 0))
         self._name_labels.append(name_lbl)
@@ -296,7 +310,7 @@ class ConverterApp:
                   foreground="#1a56db").pack(side=RIGHT)
 
         desc_lbl = ttk.Label(card, text=task.desc,
-                             font=("Microsoft YaHei UI", 9),
+                             font=(self._font, 9),
                              foreground="#6b7280",
                              padding=(28, 6, 0, 0),
                              wraplength=550)
@@ -381,6 +395,21 @@ class ConverterApp:
 
         ttk.Separator(f).pack(fill=X, pady=16)
 
+        # ---- 字体选择 ----
+        ttk.Label(f, text="🔤 界面字体",
+                  font=("Microsoft YaHei UI", 13, "bold")).pack(anchor=W)
+
+        font_var = tk.StringVar(value=self._font)
+        ff = ttk.Frame(f)
+        ff.pack(fill=X, pady=(8, 0))
+
+        for i, (fn, fl) in enumerate(FONT_OPTIONS):
+            ttk.Radiobutton(ff, text=fl, variable=font_var,
+                            value=fn, bootstyle="info"
+                            ).grid(row=i // 2, column=i % 2, sticky=W, padx=(0, 24), pady=2)
+
+        ttk.Separator(f).pack(fill=X, pady=16)
+
         # ---- 窗口尺寸 ----
         ttk.Label(f, text="📐 窗口尺寸",
                   font=("Microsoft YaHei UI", 13, "bold")).pack(anchor=W)
@@ -407,18 +436,23 @@ class ConverterApp:
         def apply():
             nt = theme_var.get()
             ns = size_var.get()
+            nf = font_var.get()
             changed_theme = nt != self.config.get("theme")
             changed_size = ns != self.config.get("window_size")
+            changed_font = nf != self.config.get("font_family")
 
             self.config["theme"] = nt
             self.config["window_size"] = ns
+            self.config["font_family"] = nf
             if ns in SIZE_PRESETS:
                 self._win_w, self._win_h = SIZE_PRESETS[ns]
             save_config(self.config)
             win.destroy()
 
+            rebuild = changed_theme or changed_font
             if changed_theme:
                 self.root.style.theme_use(nt)
+            if rebuild:
                 self._rebuild()
             elif changed_size:
                 self.root.geometry(f"{self._win_w}x{self._win_h}")
@@ -435,11 +469,11 @@ class ConverterApp:
 
         # 设置弹窗大小 & 居中
         win.update_idletasks()
-        ww, wh = 560, 420
+        ww, wh = 580, 520
         wx = self.root.winfo_x() + (self._win_w - ww) // 2
         wy = self.root.winfo_y() + (self._win_h - wh) // 2
         win.geometry(f"{ww}x{wh}+{wx}+{wy}")
-        win.minsize(480, 320)
+        win.minsize(480, 380)
 
     # ==================== 转换逻辑 ====================
 
