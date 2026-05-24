@@ -198,7 +198,7 @@ def parse_markdown(lines: list) -> list:
                 code_lines.append(merged[i])
                 i += 1
             i += 1
-            elements.append({'type': 'code_block', 'code': ''.join(code_lines), 'lang': lang})
+            elements.append({'type': 'code_block', 'code': '\n'.join(code_lines), 'lang': lang})
             continue
 
         # 水平线 ---
