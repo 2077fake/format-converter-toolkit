@@ -252,7 +252,7 @@ class ConverterApp:
 
         cc.bind("<Configure>",
                 lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
-        self._canvas.create_window((0, 0), window=cc, anchor=N, tags="c")
+        self._canvas.create_window((0, 0), window=cc, anchor=NW, tags="c")
         self._canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
 
         # 滚轮：纵向（检查 canvas 存活，避免关闭弹窗后报错）
@@ -291,10 +291,9 @@ class ConverterApp:
         self.status_lbl.pack(fill=X, pady=(12, 0))
 
     def _make_card(self, parent, task):
-        card = ttk.Frame(parent, padding=16, bootstyle="light", cursor="hand2",
-                         width=520)
+        card = ttk.Frame(parent, padding=16, bootstyle="light", cursor="hand2")
 
-        # 标题行：图标 + 名称 + 箭头
+        # 标题行
         row = ttk.Frame(card)
         row.pack(fill=X)
 
@@ -316,14 +315,11 @@ class ConverterApp:
                              font=(self._font, 9),
                              foreground="#6b7280",
                              padding=(0, 6, 0, 0),
-                             wraplength=480,
+                             wraplength=550,
                              anchor=W)
         desc_lbl.pack(fill=X)
         self._desc_labels.append(desc_lbl)
         self._card_frames.append(card)
-
-        # 阻止卡片自动收缩
-        card.pack_propagate(False)
 
         def bind_recursive(w):
             w.bind("<Button-1>", lambda e, t=task: self._convert(t))
