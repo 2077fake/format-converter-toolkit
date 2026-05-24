@@ -1,4 +1,18 @@
-# 📝 md2docx — Markdown 转 Word 文档工具
+# 📝 文档格式互转工具箱
+
+一键在 Markdown、Word、PDF 三种格式之间自由转换。
+
+## 🔁 转换方向
+
+| 工具 | 方向 | 命令 |
+|------|------|------|
+| `md_to_docx.py` | Markdown → Word | `python md_to_docx.py input.md` |
+| `docx_to_md.py` | Word → Markdown | `python docx_to_md.py input.docx` |
+| `pdf_to_md.py` | PDF → Markdown | `python pdf_to_md.py input.pdf` |
+
+---
+
+# ① md_to_docx — Markdown 转 Word
 
 将 Markdown（`.md`）文件一键转换为格式精美的 Word（`.docx`）文档，**完整支持 LaTeX 数学公式**。
 
@@ -23,11 +37,12 @@
 pip install -r requirements.txt
 ```
 
-依赖仅需一个库：
+依赖仅需两个库：
 
 | 库 | 用途 |
 |---|---|
-| [python-docx](https://python-docx.readthedocs.io/) | 生成 Word 文档 |
+| [python-docx](https://python-docx.readthedocs.io/) | Word 文档读写 |
+| [PyMuPDF](https://pymupdf.readthedocs.io/) | PDF 文本提取 |
 
 ## 🚀 使用
 
@@ -72,14 +87,83 @@ $$g_m = \sqrt{2 \mu_n C_{ox} \frac{W}{L} I_D}$$
 ## 🏗️ 项目结构
 
 ```
-md2docx/
-├── md_to_docx.py      # 主程序
+文档互转工具箱/
+├── md_to_docx.py       # Markdown → Word
+├── docx_to_md.py       # Word → Markdown
+├── pdf_to_md.py        # PDF → Markdown
 ├── requirements.txt    # 依赖清单
 ├── README.md           # 本文件
 └── 测试示例.md         # 测试用 Markdown
 ```
 
-## 🔧 技术架构
+---
+
+# ② docx_to_md — Word 转 Markdown
+
+将 Word（`.docx`）文档转为 Markdown（`.md`），保留结构和格式。
+
+## ✨ 特性
+
+- 📐 **标题识别** — 自动识别 Word 标题样式（Heading 1~6 / 标题1~6）→ `# ~ ######`
+- 🔤 **行内格式** — 粗体 → `**text**`、斜体 → `*text*`、粗斜体 → `***text***`
+- 💻 **代码块** — 等宽字体段落自动识别为代码块（Consolas 等）
+- 📋 **列表** — 有序/无序列表自动转换
+- 📊 **表格** — Word 表格 → Markdown 表格
+- 🔗 **超链接** — 保留 `[text](url)` 格式
+- 🖼️ **图片占位** — 标记图片位置
+
+## 🚀 使用
+
+```bash
+python docx_to_md.py input.docx [output.md]
+```
+
+### 示例
+
+```bash
+# 自动生成同名 .md
+python docx_to_md.py 报告.docx
+
+# 指定输出文件名
+python docx_to_md.py 论文.docx 论文笔记.md
+```
+
+---
+
+# ③ pdf_to_md — PDF 转 Markdown
+
+将 PDF 文件转为 Markdown（`.md`），智能识别文档结构。
+
+## ✨ 特性
+
+- 📄 **逐页转换** — 按页组织，页间用 `---` 分隔
+- 📐 **标题检测** — 基于字号/加粗自动识别标题层级
+- 🔤 **格式保留** — 粗体、斜体自动转为 Markdown 标记
+- 📊 **简易表格** — 检测对齐文本并尝试转为 Markdown 表格
+- 🖼️ **图片标记** — 嵌入图片以占位符标记
+- 📏 **字号感知** — 自动统计全文正文字号，智能判断标题
+
+## 🚀 使用
+
+```bash
+python pdf_to_md.py input.pdf [output.md]
+```
+
+### 示例
+
+```bash
+# 自动生成同名 .md
+python pdf_to_md.py 论文.pdf
+
+# 指定输出文件名
+python pdf_to_md.py 合同.pdf 合同文本.md
+```
+
+> ⚠️ **注意**：PDF 转换效果取决于 PDF 本身的结构化程度。扫描版 PDF（纯图片）无法提取文字，请先用 OCR 工具处理。
+
+---
+
+## 🔧 技术架构（md_to_docx）
 
 ```
 Markdown 文件
