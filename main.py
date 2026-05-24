@@ -39,14 +39,14 @@ THEME_OPTIONS = [
 ]
 
 FONT_OPTIONS = [
-    ("Microsoft YaHei UI",      "📝 微软雅黑 (默认)"),
-    ("SimSun",                  "📜 宋体"),
-    ("SimHei",                  "🖌️ 黑体"),
-    ("KaiTi",                   "🖋️ 楷体"),
-    ("DengXian",                "📏 等线"),
-    ("Microsoft JhengHei UI",   "🇹🇼 微軟正黑體"),
-    ("Segoe UI",                "🔤 Segoe UI"),
-    ("Arial",                   "🔤 Arial"),
+    ("Microsoft YaHei UI",      "微软雅黑 (默认)"),
+    ("SimSun",                  "宋体"),
+    ("SimHei",                  "黑体"),
+    ("KaiTi",                   "楷体"),
+    ("DengXian",                "等线"),
+    ("Microsoft JhengHei UI",   "微軟正黑體"),
+    ("Segoe UI",                "Segoe UI"),
+    ("Arial",                   "Arial"),
 ]
 
 SIZE_PRESETS = {
