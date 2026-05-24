@@ -8,6 +8,7 @@
 |------|------|------|
 | `md_to_docx.py` | Markdown → Word | `python md_to_docx.py input.md` |
 | `docx_to_md.py` | Word → Markdown | `python docx_to_md.py input.docx` |
+| `md_to_pdf.py` | Markdown → PDF | `python md_to_pdf.py input.md` |
 | `pdf_to_md.py` | PDF → Markdown | `python pdf_to_md.py input.pdf` |
 
 ---
@@ -84,18 +85,6 @@ $$g_m = \sqrt{2 \mu_n C_{ox} \frac{W}{L} I_D}$$
 | `$R_{out}$` | Rout |
 | `$V_{DD}$` | VDD |
 
-## 🏗️ 项目结构
-
-```
-文档互转工具箱/
-├── md_to_docx.py       # Markdown → Word
-├── docx_to_md.py       # Word → Markdown
-├── pdf_to_md.py        # PDF → Markdown
-├── requirements.txt    # 依赖清单
-├── README.md           # 本文件
-└── 测试示例.md         # 测试用 Markdown
-```
-
 ---
 
 # ② docx_to_md — Word 转 Markdown
@@ -160,6 +149,53 @@ python pdf_to_md.py 合同.pdf 合同文本.md
 ```
 
 > ⚠️ **注意**：PDF 转换效果取决于 PDF 本身的结构化程度。扫描版 PDF（纯图片）无法提取文字，请先用 OCR 工具处理。
+
+---
+
+# ④ md_to_pdf — Markdown 转 PDF
+
+将 Markdown（`.md`）文件一键转换为排版精美的 PDF 文档。
+
+## ✨ 特性
+
+- 📄 **完整 Markdown 支持** — 标题、段落、粗体、斜体、行内代码、链接、图片占位
+- 📋 **列表与表格** — 有序/无序列表、Markdown 表格（表头深色背景）
+- 💻 **代码块** — 灰色背景 + 等宽字体渲染，自动识别语言标签
+- 💬 **引用块** — 左侧灰色边框 + 斜体引用样式
+- 🧮 **LaTeX 公式** — `$...$` 行内公式 + `$$...$$` 块级公式
+- ➖ **水平分割线**
+- 📐 **A4 排版** — 自动分页、智能折行、中英文混排
+
+## 🚀 使用
+
+```bash
+python md_to_pdf.py input.md [output.pdf]
+```
+
+### 示例
+
+```bash
+# 自动生成同名 .pdf
+python md_to_pdf.py readme.md
+
+# 指定输出文件名
+python md_to_pdf.py 笔记.md 整理好的笔记.pdf
+```
+
+---
+
+## 🏗️ 项目结构
+
+```
+文档互转工具箱/
+├── md_to_docx.py       # Markdown → Word
+├── docx_to_md.py       # Word → Markdown
+├── md_to_pdf.py        # Markdown → PDF
+├── pdf_to_md.py        # PDF → Markdown
+├── requirements.txt    # 依赖清单
+├── README.md           # 本文件
+└── 测试示例.md         # 测试用 Markdown
+```
 
 ---
 
