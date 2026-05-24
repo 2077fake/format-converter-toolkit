@@ -23,4 +23,7 @@ Thumbs.db
 测试示例.docx
 *_output.docx
 *_output.md
+
+# User config
+app_config.json
 资源/*_converted.md
