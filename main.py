@@ -179,12 +179,17 @@ class ConverterApp:
         canvas.create_window((0, 0), window=cc, anchor=NW, tags="c")
         canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
 
-        # 滚轮：纵向
-        canvas.bind_all("<MouseWheel>",
-                        lambda e: canvas.yview_scroll(-int(e.delta / 120), "units"))
+        # 滚轮：纵向（检查 canvas 存活，避免关闭弹窗后报错）
+        def _scroll_y(event, c=canvas):
+            if c.winfo_exists():
+                c.yview_scroll(-int(event.delta / 120), "units")
+        canvas.bind_all("<MouseWheel>", _scroll_y)
+
         # Shift + 滚轮：横向
-        canvas.bind_all("<Shift-MouseWheel>",
-                        lambda e: canvas.xview_scroll(-int(e.delta / 120), "units"))
+        def _scroll_x(event, c=canvas):
+            if c.winfo_exists():
+                c.xview_scroll(-int(event.delta / 120), "units")
+        canvas.bind_all("<Shift-MouseWheel>", _scroll_x)
 
         for i, task in enumerate(CONVERTERS):
             card = self._make_card(cc, task)
@@ -248,10 +253,15 @@ class ConverterApp:
         canvas.create_window((0, 0), window=scroll_frame, anchor=NW, tags="sf")
 
         canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
-        canvas.bind_all("<MouseWheel>",
-                        lambda e: canvas.yview_scroll(-int(e.delta / 120), "units"))
-        canvas.bind_all("<Shift-MouseWheel>",
-                        lambda e: canvas.xview_scroll(-int(e.delta / 120), "units"))
+        # 滚轮绑定（检查 canvas 存活避免关闭后报错）
+        def _scroll_y(event, c=canvas):
+            if c.winfo_exists():
+                c.yview_scroll(-int(event.delta / 120), "units")
+        def _scroll_x(event, c=canvas):
+            if c.winfo_exists():
+                c.xview_scroll(-int(event.delta / 120), "units")
+        canvas.bind_all("<MouseWheel>", _scroll_y)
+        canvas.bind_all("<Shift-MouseWheel>", _scroll_x)
 
         canvas.grid(row=0, column=0, sticky=NSEW)
         v_sb.grid(row=0, column=1, sticky=NS)
