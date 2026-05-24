@@ -185,9 +185,8 @@ class ConverterApp:
                 self._name_labels[i].configure(font=(f, sz, "bold"))
             if i < len(self._desc_labels):
                 sz = max(7, min(12, int(9 * s)))
-                cw = self._canvas.winfo_width() - 80 if self._canvas.winfo_width() > 80 else 300
-                wrap = max(200, min(800, int(cw)))
-                self._desc_labels[i].configure(font=(f, sz), wraplength=wrap)
+                # 注意：不改 wraplength，保证卡片宽度固定、居中稳定
+                self._desc_labels[i].configure(font=(f, sz))
 
         for card in self._card_frames:
             try:
@@ -331,7 +330,7 @@ class ConverterApp:
                              font=(self._font, 9),
                              foreground="#6b7280",
                              padding=(0, 6, 0, 0),
-                             wraplength=550,
+                             wraplength=480,
                              anchor=W)
         desc_lbl.pack(fill=X)
         self._desc_labels.append(desc_lbl)
@@ -470,8 +469,8 @@ class ConverterApp:
                 self._center_window()
             else:
                 self._status("⚙️ 设置已应用", "info")
-
-            self._status("⚙️ 设置已应用", "info")
+            if rebuild or changed_size:
+                self.root.after(100, lambda: self._status("⚙️ 设置已应用", "info"))
 
         ttk.Button(bf, text="✅ 应用", command=apply,
                    bootstyle="primary", padding=(24, 8)).pack(side=LEFT, padx=(0, 12))
