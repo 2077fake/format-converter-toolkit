@@ -293,6 +293,8 @@ class ConverterApp:
 
     def _make_card(self, parent, task):
         card = ttk.Frame(parent, padding=16, bootstyle="light", cursor="hand2")
+
+        # 标题行：图标 + 名称 + 箭头（左对齐，不留空白）
         row = ttk.Frame(card)
         row.pack(fill=X)
 
@@ -303,18 +305,20 @@ class ConverterApp:
         name_lbl = ttk.Label(row, text=task.name,
                              font=(self._font, 12, "bold"),
                              foreground="#1a1a2e")
-        name_lbl.pack(side=LEFT, padx=(10, 0))
+        name_lbl.pack(side=LEFT, padx=(8, 0))
         self._name_labels.append(name_lbl)
 
         ttk.Label(row, text="→", font=("Segoe UI", 12),
                   foreground="#1a56db").pack(side=RIGHT)
 
+        # 描述行：左对齐，无多余缩进，文字自动折行
         desc_lbl = ttk.Label(card, text=task.desc,
                              font=(self._font, 9),
                              foreground="#6b7280",
-                             padding=(28, 6, 0, 0),
-                             wraplength=550)
-        desc_lbl.pack(anchor=W)
+                             padding=(0, 6, 0, 0),
+                             wraplength=550,
+                             anchor=W)
+        desc_lbl.pack(fill=X)
         self._desc_labels.append(desc_lbl)
         self._card_frames.append(card)
 
@@ -365,71 +369,63 @@ class ConverterApp:
         f = ttk.Frame(scroll_frame, padding=24)
         f.pack(fill=BOTH, expand=YES)
 
-        # ---- 主题选择 ----
-        ttk.Label(f, text="🎨 主题",
-                  font=("Microsoft YaHei UI", 13, "bold")).pack(anchor=W)
+        # 所有设置项使用统一左对齐
+        def section_title(parent, text):
+            ttk.Label(parent, text=text,
+                      font=("Microsoft YaHei UI", 12, "bold")
+                      ).pack(anchor=W, pady=(0, 8))
 
+        # ---- 主题选择（按亮/暗分组，每组一列）----
+        section_title(f, "🎨 主题")
         theme_var = tk.StringVar(value=self.config.get("theme", "flatly"))
 
-        # 亮色主题组
-        ttk.Label(f, text="  亮色主题",
-                  font=("Microsoft YaHei UI", 10),
-                  foreground="#0a7e3d").pack(anchor=W, pady=(6, 4))
-        tf_light = ttk.Frame(f)
-        tf_light.pack(fill=X, padx=(8, 0))
-        for i, (tid, tl) in enumerate([t for t in THEME_OPTIONS if t[0] in ("flatly", "litera", "pulse")]):
-            ttk.Radiobutton(tf_light, text=tl, variable=theme_var,
-                            value=tid, bootstyle="info").grid(
-                row=0, column=i, sticky=W, padx=(0, 24))
+        # 亮色组
+        light_frame = ttk.LabelFrame(f, text="亮色主题", padding=10)
+        light_frame.pack(fill=X, pady=(0, 8))
+        for tid, tl in [t for t in THEME_OPTIONS if t[0] in ("flatly", "litera", "pulse")]:
+            ttk.Radiobutton(light_frame, text=tl, variable=theme_var,
+                            value=tid, bootstyle="info"
+                            ).pack(anchor=W, pady=1)
 
-        # 暗色主题组
-        ttk.Label(f, text="  暗色主题",
-                  font=("Microsoft YaHei UI", 10),
-                  foreground="#7c3aed").pack(anchor=W, pady=(10, 4))
-        tf_dark = ttk.Frame(f)
-        tf_dark.pack(fill=X, padx=(8, 0))
-        for i, (tid, tl) in enumerate([t for t in THEME_OPTIONS if t[0] in ("darkly", "cyborg", "superhero", "solar")]):
-            ttk.Radiobutton(tf_dark, text=tl, variable=theme_var,
-                            value=tid, bootstyle="info").grid(
-                row=0, column=i, sticky=W, padx=(0, 24))
+        # 暗色组
+        dark_frame = ttk.LabelFrame(f, text="暗色主题", padding=10)
+        dark_frame.pack(fill=X, pady=(0, 8))
+        for tid, tl in [t for t in THEME_OPTIONS if t[0] in ("darkly", "cyborg", "superhero", "solar")]:
+            ttk.Radiobutton(dark_frame, text=tl, variable=theme_var,
+                            value=tid, bootstyle="info"
+                            ).pack(anchor=W, pady=1)
 
-        ttk.Separator(f).pack(fill=X, pady=16)
+        ttk.Separator(f, bootstyle="secondary").pack(fill=X, pady=12)
 
-        # ---- 字体选择 ----
-        ttk.Label(f, text="🔤 界面字体",
-                  font=("Microsoft YaHei UI", 13, "bold")).pack(anchor=W)
-
+        # ---- 字体选择（2 列网格，整齐对齐）----
+        section_title(f, "🔤 界面字体")
         font_var = tk.StringVar(value=self._font)
         ff = ttk.Frame(f)
-        ff.pack(fill=X, pady=(8, 0))
-
+        ff.pack(fill=X)
         for i, (fn, fl) in enumerate(FONT_OPTIONS):
             ttk.Radiobutton(ff, text=fl, variable=font_var,
                             value=fn, bootstyle="info"
-                            ).grid(row=i // 2, column=i % 2, sticky=W, padx=(0, 24), pady=2)
+                            ).grid(row=i // 2, column=i % 2, sticky=W, padx=(0, 20), pady=2)
+        ff.columnconfigure(0, weight=1)
+        ff.columnconfigure(1, weight=1)
 
-        ttk.Separator(f).pack(fill=X, pady=16)
+        ttk.Separator(f, bootstyle="secondary").pack(fill=X, pady=12)
 
-        # ---- 窗口尺寸 ----
-        ttk.Label(f, text="📐 窗口尺寸",
-                  font=("Microsoft YaHei UI", 13, "bold")).pack(anchor=W)
-
+        # ---- 窗口尺寸（纵向紧凑排列）----
+        section_title(f, "📐 窗口尺寸")
         size_var = tk.StringVar(value=self.config.get("window_size", "medium"))
         ssf = ttk.Frame(f)
-        ssf.pack(fill=X, pady=(8, 0))
-
-        size_options = [
-            ("small",  "📱 小 (600×480)"),
-            ("medium", "💻 中 (780×620)"),
-            ("large",  "🖥️ 大 (960×760)"),
-        ]
-        for sid, sl in size_options:
+        ssf.pack(fill=X)
+        for sid, sl in [("small", "📱 小 (600×480)"),
+                        ("medium", "💻 中 (780×620)"),
+                        ("large", "🖥️ 大 (960×760)")]:
             ttk.Radiobutton(ssf, text=sl, variable=size_var,
-                            value=sid, bootstyle="info").pack(anchor=W, pady=3)
+                            value=sid, bootstyle="info"
+                            ).pack(anchor=W, pady=2)
 
-        ttk.Separator(f).pack(fill=X, pady=16)
+        ttk.Separator(f, bootstyle="secondary").pack(fill=X, pady=12)
 
-        # ---- 底部按钮 ----
+        # ---- 底部按钮（居中）----
         bf = ttk.Frame(f)
         bf.pack(fill=X, pady=(4, 0))
 
