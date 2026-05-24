@@ -164,29 +164,38 @@ class ConverterApp:
                   font=("Microsoft YaHei UI", 10),
                   foreground="#666").pack(anchor=W, pady=(0, 16))
 
-        # ---- 可滚动卡片区 ----
+        # ---- 可滚动卡片区（支持水平+垂直滚动）----
         sf = ttk.Frame(main)
         sf.pack(fill=BOTH, expand=YES)
 
         canvas = tk.Canvas(sf, highlightthickness=0,
                            bg=self.root.style.colors.bg)
-        sb = ttk.Scrollbar(sf, orient=VERTICAL, command=canvas.yview)
+        v_sb = ttk.Scrollbar(sf, orient=VERTICAL, command=canvas.yview)
+        h_sb = ttk.Scrollbar(sf, orient=HORIZONTAL, command=canvas.xview)
         cc = ttk.Frame(canvas)
 
-        cc.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        cc.bind("<Configure>",
+                lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.create_window((0, 0), window=cc, anchor=NW, tags="c")
-        canvas.configure(yscrollcommand=sb.set)
+        canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
+
+        # 滚轮：纵向
         canvas.bind_all("<MouseWheel>",
                         lambda e: canvas.yview_scroll(-int(e.delta / 120), "units"))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig("c", width=e.width))
+        # Shift + 滚轮：横向
+        canvas.bind_all("<Shift-MouseWheel>",
+                        lambda e: canvas.xview_scroll(-int(e.delta / 120), "units"))
 
         for i, task in enumerate(CONVERTERS):
             card = self._make_card(cc, task)
             card.grid(row=i, column=0, sticky=EW, pady=5)
             cc.columnconfigure(0, weight=1)
 
-        canvas.pack(side=LEFT, fill=BOTH, expand=YES)
-        sb.pack(side=RIGHT, fill=Y)
+        canvas.grid(row=0, column=0, sticky=NSEW)
+        v_sb.grid(row=0, column=1, sticky=NS)
+        h_sb.grid(row=1, column=0, sticky=EW)
+        sf.grid_rowconfigure(0, weight=1)
+        sf.grid_columnconfigure(0, weight=1)
 
         # ---- 底部状态 ----
         self.status_var = tk.StringVar(value="💡 点击上方卡片开始转换")
@@ -223,26 +232,32 @@ class ConverterApp:
     def _open_settings(self):
         win = tk.Toplevel(self.root)
         win.title("⚙️ 设置")
-        win.resizable(True, True)  # 允许用户拖拽调整大小
+        win.resizable(True, True)
         win.transient(self.root)
         win.grab_set()
 
-        # --- 可滚动的设置内容 ---
+        # --- 可滚动的设置内容（水平+垂直） ---
         canvas = tk.Canvas(win, highlightthickness=0,
                            bg=self.root.style.colors.bg)
-        scrollbar = ttk.Scrollbar(win, orient=VERTICAL, command=canvas.yview)
+        v_sb = ttk.Scrollbar(win, orient=VERTICAL, command=canvas.yview)
+        h_sb = ttk.Scrollbar(win, orient=HORIZONTAL, command=canvas.xview)
         scroll_frame = ttk.Frame(canvas)
 
         scroll_frame.bind("<Configure>",
                           lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
         canvas.create_window((0, 0), window=scroll_frame, anchor=NW, tags="sf")
-        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
         canvas.bind_all("<MouseWheel>",
                         lambda e: canvas.yview_scroll(-int(e.delta / 120), "units"))
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig("sf", width=e.width))
+        canvas.bind_all("<Shift-MouseWheel>",
+                        lambda e: canvas.xview_scroll(-int(e.delta / 120), "units"))
 
-        canvas.pack(side=LEFT, fill=BOTH, expand=YES)
-        scrollbar.pack(side=RIGHT, fill=Y)
+        canvas.grid(row=0, column=0, sticky=NSEW)
+        v_sb.grid(row=0, column=1, sticky=NS)
+        h_sb.grid(row=1, column=0, sticky=EW)
+        win.grid_rowconfigure(0, weight=1)
+        win.grid_columnconfigure(0, weight=1)
 
         f = ttk.Frame(scroll_frame, padding=24)
         f.pack(fill=BOTH, expand=YES)
