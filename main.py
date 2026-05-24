@@ -223,41 +223,82 @@ class ConverterApp:
     def _open_settings(self):
         win = tk.Toplevel(self.root)
         win.title("⚙️ 设置")
-        win.resizable(False, False)
+        win.resizable(True, True)  # 允许用户拖拽调整大小
         win.transient(self.root)
         win.grab_set()
 
-        f = ttk.Frame(win, padding=20)
+        # --- 可滚动的设置内容 ---
+        canvas = tk.Canvas(win, highlightthickness=0,
+                           bg=self.root.style.colors.bg)
+        scrollbar = ttk.Scrollbar(win, orient=VERTICAL, command=canvas.yview)
+        scroll_frame = ttk.Frame(canvas)
+
+        scroll_frame.bind("<Configure>",
+                          lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=scroll_frame, anchor=NW, tags="sf")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.bind_all("<MouseWheel>",
+                        lambda e: canvas.yview_scroll(-int(e.delta / 120), "units"))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig("sf", width=e.width))
+
+        canvas.pack(side=LEFT, fill=BOTH, expand=YES)
+        scrollbar.pack(side=RIGHT, fill=Y)
+
+        f = ttk.Frame(scroll_frame, padding=24)
         f.pack(fill=BOTH, expand=YES)
 
-        # 主题
+        # ---- 主题选择 ----
         ttk.Label(f, text="🎨 主题",
-                  font=("Microsoft YaHei UI", 12, "bold")).pack(anchor=W)
+                  font=("Microsoft YaHei UI", 13, "bold")).pack(anchor=W)
 
         theme_var = tk.StringVar(value=self.config.get("theme", "flatly"))
-        tf = ttk.Frame(f)
-        tf.pack(fill=X, pady=(6, 16))
-        for i, (tid, tl) in enumerate(THEME_OPTIONS):
-            ttk.Radiobutton(tf, text=tl, variable=theme_var,
-                            value=tid, bootstyle="info"
-                            ).grid(row=i // 2, column=i % 2, sticky=W, padx=(0, 16), pady=2)
 
-        # 窗口尺寸
+        # 亮色主题组
+        ttk.Label(f, text="  亮色主题",
+                  font=("Microsoft YaHei UI", 10),
+                  foreground="#0a7e3d").pack(anchor=W, pady=(6, 4))
+        tf_light = ttk.Frame(f)
+        tf_light.pack(fill=X, padx=(8, 0))
+        for i, (tid, tl) in enumerate([t for t in THEME_OPTIONS if t[0] in ("flatly", "litera", "pulse")]):
+            ttk.Radiobutton(tf_light, text=tl, variable=theme_var,
+                            value=tid, bootstyle="info").grid(
+                row=0, column=i, sticky=W, padx=(0, 24))
+
+        # 暗色主题组
+        ttk.Label(f, text="  暗色主题",
+                  font=("Microsoft YaHei UI", 10),
+                  foreground="#7c3aed").pack(anchor=W, pady=(10, 4))
+        tf_dark = ttk.Frame(f)
+        tf_dark.pack(fill=X, padx=(8, 0))
+        for i, (tid, tl) in enumerate([t for t in THEME_OPTIONS if t[0] in ("darkly", "cyborg", "superhero", "solar")]):
+            ttk.Radiobutton(tf_dark, text=tl, variable=theme_var,
+                            value=tid, bootstyle="info").grid(
+                row=0, column=i, sticky=W, padx=(0, 24))
+
+        ttk.Separator(f).pack(fill=X, pady=16)
+
+        # ---- 窗口尺寸 ----
         ttk.Label(f, text="📐 窗口尺寸",
-                  font=("Microsoft YaHei UI", 12, "bold")).pack(anchor=W)
+                  font=("Microsoft YaHei UI", 13, "bold")).pack(anchor=W)
+
         size_var = tk.StringVar(value=self.config.get("window_size", "medium"))
         ssf = ttk.Frame(f)
-        ssf.pack(fill=X, pady=(6, 16))
-        for sid, sl in [("small", "📱 小 (600×480)"),
-                        ("medium", "💻 中 (780×620)"),
-                        ("large", "🖥️ 大 (960×760)")]:
-            ttk.Radiobutton(ssf, text=sl, variable=size_var,
-                            value=sid, bootstyle="info"
-                            ).pack(anchor=W, pady=2)
+        ssf.pack(fill=X, pady=(8, 0))
 
-        # 按钮
+        size_options = [
+            ("small",  "📱 小 (600×480)"),
+            ("medium", "💻 中 (780×620)"),
+            ("large",  "🖥️ 大 (960×760)"),
+        ]
+        for sid, sl in size_options:
+            ttk.Radiobutton(ssf, text=sl, variable=size_var,
+                            value=sid, bootstyle="info").pack(anchor=W, pady=3)
+
+        ttk.Separator(f).pack(fill=X, pady=16)
+
+        # ---- 底部按钮 ----
         bf = ttk.Frame(f)
-        bf.pack(fill=X, pady=(12, 0))
+        bf.pack(fill=X, pady=(4, 0))
 
         def apply():
             nt = theme_var.get()
@@ -267,10 +308,8 @@ class ConverterApp:
 
             self.config["theme"] = nt
             self.config["window_size"] = ns
-
             if ns in SIZE_PRESETS:
                 self._win_w, self._win_h = SIZE_PRESETS[ns]
-
             save_config(self.config)
             win.destroy()
 
@@ -280,18 +319,23 @@ class ConverterApp:
             elif changed_size:
                 self.root.geometry(f"{self._win_w}x{self._win_h}")
                 self._center_window()
+            else:
+                self._status("⚙️ 设置已应用", "info")
 
             self._status("⚙️ 设置已应用", "info")
 
         ttk.Button(bf, text="✅ 应用", command=apply,
-                   bootstyle="primary", padding=(24, 6)).pack(side=LEFT, padx=(0, 10))
+                   bootstyle="primary", padding=(24, 8)).pack(side=LEFT, padx=(0, 12))
         ttk.Button(bf, text="取消", command=win.destroy,
-                   bootstyle="secondary", padding=(16, 6)).pack(side=LEFT)
+                   bootstyle="secondary", padding=(16, 8)).pack(side=LEFT)
 
+        # 设置弹窗大小 & 居中
         win.update_idletasks()
-        wx = self.root.winfo_x() + (self._win_w - 440) // 2
-        wy = self.root.winfo_y() + (self._win_h - 320) // 2
-        win.geometry(f"440x320+{wx}+{wy}")
+        ww, wh = 560, 420
+        wx = self.root.winfo_x() + (self._win_w - ww) // 2
+        wy = self.root.winfo_y() + (self._win_h - wh) // 2
+        win.geometry(f"{ww}x{wh}+{wx}+{wy}")
+        win.minsize(480, 320)
 
     # ==================== 转换逻辑 ====================
 
