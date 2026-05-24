@@ -65,7 +65,7 @@ def _is_list_item(paragraph) -> tuple:
 
 # ==================== 行内格式提取 ====================
 
-def _extract_run_text(run, para_text: str, runs_processed: set = None) -> str:
+def _extract_run_text(run, para_text: str, runs_processed: set = None, doc=None) -> str:
     """提取单个 run 的文本，附加 Markdown 格式标记"""
     if runs_processed is None:
         runs_processed = set()
@@ -78,13 +78,18 @@ def _extract_run_text(run, para_text: str, runs_processed: set = None) -> str:
     if not text:
         return ''
 
-    # 检查超链接
-    hyperlink = None
+    # 检查超链接（通过 relationship ID 查找真实 URL）
+    hyperlink_url = None
     parent = run._element.getparent()
     if parent is not None and parent.tag == qn('w:hyperlink'):
-        hyperlink = parent.get(qn('r:id'))
+        r_id = parent.get(qn('r:id'))
+        if r_id and doc is not None:
+            try:
+                hyperlink_url = doc.part.rels[r_id].target_ref
+            except (KeyError, AttributeError):
+                hyperlink_url = r_id
 
-    # 格式标记
+    # 格式标记（标题文本不加粗，避免 # **Title** 的问题）
     prefix = ''
     suffix = ''
 
@@ -95,19 +100,19 @@ def _extract_run_text(run, para_text: str, runs_processed: set = None) -> str:
     elif run.italic:
         prefix, suffix = '*', '*'
 
-    # 等宽字体 → 行内代码
+    # 等宽字体 → 行内代码（浅色背景或小型文本不误判）
     font_name = (run.font.name or '').lower()
     if font_name in ('consolas', 'courier new', 'monospace', 'source code pro'):
         prefix, suffix = '`', '`'
 
     # 超链接
-    if hyperlink:
-        return f'[{text}]({hyperlink})'
+    if hyperlink_url:
+        return f'[{text}]({hyperlink_url})'
 
     return f'{prefix}{text}{suffix}'
 
 
-def _process_paragraph_text(paragraph) -> str:
+def _process_paragraph_text(paragraph, doc=None) -> str:
     """提取段落的 Markdown 文本（含行内格式）"""
     runs = paragraph.runs
     if not runs:
@@ -115,16 +120,9 @@ def _process_paragraph_text(paragraph) -> str:
 
     parts = []
     for run in runs:
-        parts.append(_extract_run_text(run, paragraph.text))
+        parts.append(_extract_run_text(run, paragraph.text, doc=doc))
 
-    result = ''.join(parts)
-    # 去除可能的空标记残留
-    result = re.sub(r'\*\*\*\*\*\*', '', result)
-    result = re.sub(r'\*\*\*\*', '', result)
-    result = re.sub(r'\*\*', '', result)  # 不做，上面已经处理了... 实际上我们需要更聪明的方法
-    # 简化：直接返回拼接结果
-    result = ''.join(parts)
-    return result
+    return ''.join(parts)
 
 
 # ==================== 表格提取 ====================
@@ -160,7 +158,8 @@ def _extract_table(table) -> str:
 # ==================== 文档转换 ====================
 
 def _is_code_block_paragraph(paragraph) -> bool:
-    """判断段落是否为代码块（基于背景色或字体）"""
+    """判断段落是否为代码块（背景色优先；仅字体匹配但无背景不算，避免行内代码误判）"""
+    # 优先检查背景色（代码块必有）
     pPr = paragraph._element.find(qn('w:pPr'))
     if pPr is not None:
         shd = pPr.find(qn('w:shd'))
@@ -168,10 +167,12 @@ def _is_code_block_paragraph(paragraph) -> bool:
             fill = shd.get(qn('w:fill'), '')
             if fill and fill.upper() in ('F0F0F0', 'F5F5F5', 'EFEFEF', 'FAFAFA', 'E8E8E8'):
                 return True
-    # 检查 run 字体
-    for run in paragraph.runs:
-        font = (run.font.name or '').lower()
-        if font in ('consolas', 'courier new', 'monospace', 'source code pro'):
+    # 无背景色时，仅当所有非空 run 都是等宽字体才视为代码块
+    runs = [r for r in paragraph.runs if r.text.strip()]
+    if runs:
+        mono_count = sum(1 for r in runs if (r.font.name or '').lower()
+                         in ('consolas', 'courier new', 'monospace', 'source code pro'))
+        if mono_count == len(runs):
             return True
     return False
 
@@ -192,27 +193,37 @@ def convert_docx_to_md(input_path: str, output_path: str = None) -> str:
     in_code_block = False
     prev_blank = True  # 前一行是否为空
 
-    # 获取文档中的所有 body 元素（段落 + 表格）
-    body = doc.element.body
-
-    for child in body:
-        tag = child.tag.split('}')[-1] if '}' in child.tag else child.tag
-
-        if tag == 'p':
-            # 段落
-            # 需要从 doc.paragraphs 中找到对应的 paragraph 对象
-            # 简化：遍历所有段落来匹配... 实际上我们可以用另一种方法
-            pass
-
-    # 更可靠的方法：遍历 doc.paragraphs 和 doc.tables
-    # 但 python-docx 的迭代不是按文档顺序的
-    # 我们用 iter_block_items 模式
-
     for block in _iter_block_items(doc):
         if isinstance(block, Paragraph):
             para = block
             text = para.text.strip()
             style_name = para.style.name if para.style else ''
+
+            # === 代码块状态机（优先检查，确保代码块及时关闭）===
+            is_code = _is_code_block_paragraph(para)
+            if is_code and not in_code_block:
+                # 进入代码块
+                code_text = para.text
+                # 分离语言标签（末行如（python））
+                code_lines = code_text.split('\n')
+                if code_lines and re.match(r'^[（(]\w+[）)]$', code_lines[-1].strip()):
+                    lang = code_lines[-1].strip().strip('（）()')
+                    code_lines = code_lines[:-1]
+                    md_lines.append(f'```{lang}')
+                else:
+                    md_lines.append('```')
+                for code_line in code_lines:
+                    md_lines.append(code_line)
+                in_code_block = True
+                prev_blank = False
+                continue
+            elif not is_code and in_code_block:
+                # 离开代码块
+                md_lines.append('```')
+                md_lines.append('')
+                in_code_block = False
+                prev_blank = True
+                # 不要 continue——让这个段落继续按普通逻辑处理
 
             # 空段落
             if not text:
@@ -221,46 +232,39 @@ def convert_docx_to_md(input_path: str, output_path: str = None) -> str:
                     prev_blank = True
                 continue
 
-            # 标题
+            # 标题（去除加粗格式，因为 Word 标题样式自带加粗）
             h_level = _get_heading_level(para)
             if h_level > 0:
                 prefix = '#' * h_level
-                md_lines.append(f'{prefix} {_process_paragraph_text(para)}')
+                t = _process_paragraph_text(para, doc)
+                # 去除标题中多余的加粗标记（Word 标题样式自带加粗）
+                t = re.sub(r'\*\*\*(.+?)\*\*\*', r'\1', t)
+                t = re.sub(r'\*\*(.+?)\*\*', r'\1', t)
+                t = re.sub(r'\*(.+?)\*', r'\1', t)
+                md_lines.append(f'{prefix} {t}')
                 md_lines.append('')
                 prev_blank = True
                 continue
-
-            # 代码块（背景色检测）
-            if _is_code_block_paragraph(para) and not in_code_block:
-                md_lines.append('```')
-                md_lines.append(para.text)
-                in_code_block = True
-                prev_blank = False
-                continue
-            elif not _is_code_block_paragraph(para) and in_code_block:
-                md_lines.append('```')
-                md_lines.append('')
-                in_code_block = False
-                prev_blank = True
 
             # 列表
             list_type, list_level = _is_list_item(para)
             if list_type == 'ul':
                 indent = '  ' * list_level
-                # 去除手动词头
-                clean = re.sub(r'^[-*+]\s+', '', text, count=1)
-                md_lines.append(f'{indent}- {_process_paragraph_text(para) if clean != text else clean}')
+                item_text = _process_paragraph_text(para, doc)
+                item_text = re.sub(r'^[-*+]\s+', '', item_text, count=1)
+                md_lines.append(f'{indent}- {item_text}')
                 prev_blank = False
                 continue
             elif list_type == 'ol':
                 indent = '  ' * list_level
-                clean = re.sub(r'^\d+[.)]\s+', '', text, count=1)
-                md_lines.append(f'{indent}1. {_process_paragraph_text(para) if clean != text else clean}')
+                item_text = _process_paragraph_text(para, doc)
+                item_text = re.sub(r'^\d+[.)]\s+', '', item_text, count=1)
+                md_lines.append(f'{indent}1. {item_text}')
                 prev_blank = False
                 continue
 
             # 普通段落
-            md_lines.append(_process_paragraph_text(para))
+            md_lines.append(_process_paragraph_text(para, doc))
             md_lines.append('')
             prev_blank = True
 
