@@ -262,16 +262,15 @@ class ConverterApp:
                 return
             cw = self._canvas.winfo_width()
             ch = self._canvas.winfo_height()
-            # 获取内容高度
             cc.update_idletasks()
             content_h = cc.winfo_reqheight()
+            # 水平始终居中，垂直根据内容高度决定
             if content_h < ch and content_h > 0:
                 y_offset = (ch - content_h) // 2
                 self._canvas.coords(self._canvas.cc_window, cw // 2, y_offset)
-                self._canvas.itemconfig(self._canvas.cc_window, anchor=N)
             else:
-                self._canvas.coords(self._canvas.cc_window, 0, 0)
-                self._canvas.itemconfig(self._canvas.cc_window, anchor=NW)
+                self._canvas.coords(self._canvas.cc_window, cw // 2, 0)
+            self._canvas.itemconfig(self._canvas.cc_window, anchor=N)
 
         self._canvas.bind("<Configure>", _center_vertically, add="+")
         # 初始居中
