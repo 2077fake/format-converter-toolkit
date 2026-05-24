@@ -29,13 +29,9 @@ DEFAULT_CONFIG = {
 }
 
 THEME_OPTIONS = [
-    ("flatly",     "☀️ 亮色 (flatly)"),
-    ("litera",     "📖 亮色 (litera)"),
-    ("pulse",      "💜 亮色 (pulse)"),
-    ("darkly",     "🌙 暗色 (darkly)"),
-    ("cyborg",     "🤖 暗色 (cyborg)"),
-    ("superhero",  "🦸 暗色 (superhero)"),
-    ("solar",      "🌅 暗色 (solar)"),
+    ("flatly",  "☀️ 亮色"),
+    ("darkly",  "🌙 暗色"),
+    ("solar",   "👁️ 护眼"),
 ]
 
 FONT_OPTIONS = [
@@ -391,25 +387,15 @@ class ConverterApp:
                       font=("Microsoft YaHei UI", 12, "bold")
                       ).pack(anchor=W, pady=(0, 8))
 
-        # ---- 主题选择（按亮/暗分组）----
+        # ---- 主题选择（3 个选项水平排列）----
         section_title(f, "🎨 主题")
         theme_var = tk.StringVar(value=self.config.get("theme", "flatly"))
-
-        # 亮色组
-        light_frame = ttk.LabelFrame(f, text="亮色主题")
-        light_frame.pack(fill=X, pady=(0, 6))
-        for tid, tl in [t for t in THEME_OPTIONS if t[0] in ("flatly", "litera", "pulse")]:
-            ttk.Radiobutton(light_frame, text=tl, variable=theme_var,
+        tf = ttk.Frame(f)
+        tf.pack(fill=X, pady=(0, 6))
+        for tid, tl in THEME_OPTIONS:
+            ttk.Radiobutton(tf, text=tl, variable=theme_var,
                             value=tid, bootstyle="info"
-                            ).pack(anchor=W, padx=10, pady=1)
-
-        # 暗色组
-        dark_frame = ttk.LabelFrame(f, text="暗色主题")
-        dark_frame.pack(fill=X, pady=(0, 6))
-        for tid, tl in [t for t in THEME_OPTIONS if t[0] in ("darkly", "cyborg", "superhero", "solar")]:
-            ttk.Radiobutton(dark_frame, text=tl, variable=theme_var,
-                            value=tid, bootstyle="info"
-                            ).pack(anchor=W, padx=10, pady=1)
+                            ).pack(side=LEFT, padx=(0, 20))
 
         ttk.Separator(f, bootstyle="secondary").pack(fill=X, pady=12)
 
