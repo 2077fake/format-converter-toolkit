@@ -1,11 +1,13 @@
 """
 格式转换工具箱 — Windows 11 桌面应用
 基于 tkinter + ttkbootstrap 现代主题
+支持亮色/暗色主题切换和窗口尺寸调节
 双击运行或: python main.py
 """
 
 import sys
 import os
+import json
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -16,11 +18,56 @@ from tkinter import filedialog, messagebox
 import tkinter as tk
 
 
-# ==================== 转换器定义（可扩展） ====================
+# ==================== 配置管理 ====================
+
+CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_config.json")
+
+DEFAULT_CONFIG = {
+    "theme": "flatly",
+    "window_size": "medium",
+}
+
+THEME_OPTIONS = [
+    ("flatly",     "☀️ 亮色 (flatly)"),
+    ("litera",     "📖 亮色 (litera)"),
+    ("pulse",      "💜 亮色 (pulse)"),
+    ("darkly",     "🌙 暗色 (darkly)"),
+    ("cyborg",     "🤖 暗色 (cyborg)"),
+    ("superhero",  "🦸 暗色 (superhero)"),
+    ("solar",      "🌅 暗色 (solar)"),
+]
+
+SIZE_PRESETS = {
+    "small":  (600, 480),
+    "medium": (780, 620),
+    "large":  (960, 760),
+}
+
+
+def load_config() -> dict:
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                cfg = json.load(f)
+                for k, v in DEFAULT_CONFIG.items():
+                    cfg.setdefault(k, v)
+                return cfg
+        except Exception:
+            pass
+    return dict(DEFAULT_CONFIG)
+
+
+def save_config(cfg: dict):
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+
+# ==================== 转换器定义 ====================
 
 class ConverterTask:
-    """转换任务定义。添加新格式：在这里加一行即可。"""
-
     def __init__(self, name: str, icon: str, desc: str,
                  source_ext: str, target_ext: str, convert_func):
         self.name = name
@@ -34,7 +81,6 @@ class ConverterTask:
         return f"{self.source_ext.upper()} 文件 (*{self.source_ext})"
 
 
-# 导入现有转换函数
 from md_to_docx import convert_md_to_docx
 from docx_to_md import convert_docx_to_md
 from pdf_to_md import convert_pdf_to_md
@@ -56,117 +102,200 @@ CONVERTERS = [
 ]
 
 
-# ==================== 应用主窗口 ====================
+# ==================== 主窗口 ====================
 
 class ConverterApp:
     def __init__(self):
-        self.root = ttk.Window(themename="flatly")
+        self.config = load_config()
+        theme = self.config.get("theme", "flatly")
+        self.root = ttk.Window(themename=theme)
         self.root.title("📦 文档格式互转工具箱")
-        self.root.geometry("680x560")
         self.root.minsize(600, 480)
+
+        size_name = self.config.get("window_size", "medium")
+        if size_name in SIZE_PRESETS:
+            self._win_w, self._win_h = SIZE_PRESETS[size_name]
+        else:
+            self._win_w, self._win_h = 780, 620
+        self.root.geometry(f"{self._win_w}x{self._win_h}")
         self._center_window()
         self._build_ui()
 
     def _center_window(self):
         self.root.update_idletasks()
-        w, h = 680, 560
         sw = self.root.winfo_screenwidth()
         sh = self.root.winfo_screenheight()
-        x = (sw - w) // 2
-        y = (sh - h) // 2
-        self.root.geometry(f"{w}x{h}+{x}+{y}")
+        x = (sw - self._win_w) // 2
+        y = (sh - self._win_h) // 2
+        self.root.geometry(f"{self._win_w}x{self._win_h}+{x}+{y}")
+
+    def _rebuild(self):
+        self._win_w = self.root.winfo_width()
+        self._win_h = self.root.winfo_height()
+        for w in self.root.winfo_children():
+            w.destroy()
+        self._build_ui()
+        self._center_window()
 
     def _build_ui(self):
         main = ttk.Frame(self.root, padding=24)
         main.pack(fill=BOTH, expand=YES)
 
-        # ---- 标题 ----
+        # ---- 标题栏 ----
         header = ttk.Frame(main)
         header.pack(fill=X, pady=(0, 4))
 
         ttk.Label(header, text="📦 文档格式互转工具箱",
                   font=("Microsoft YaHei UI", 18, "bold")).pack(side=LEFT)
 
-        ttk.Label(header, text="v2.1 · Desktop",
+        right = ttk.Frame(header)
+        right.pack(side=RIGHT)
+
+        ttk.Label(right, text="v2.2 · Desktop",
                   font=("Segoe UI", 9),
-                  foreground="#999").pack(side=RIGHT, pady=(8, 0))
+                  foreground="#999").pack(side=LEFT, pady=(8, 0), padx=(0, 8))
+
+        ttk.Button(right, text="⚙️ 设置",
+                   command=self._open_settings,
+                   bootstyle="outline-secondary",
+                   padding=(8, 2)).pack(side=RIGHT)
 
         ttk.Label(main, text="选择一个转换方向，选取文件即可一键转换",
                   font=("Microsoft YaHei UI", 10),
                   foreground="#666").pack(anchor=W, pady=(0, 16))
 
         # ---- 可滚动卡片区 ----
-        scroll_frame = ttk.Frame(main)
-        scroll_frame.pack(fill=BOTH, expand=YES)
+        sf = ttk.Frame(main)
+        sf.pack(fill=BOTH, expand=YES)
 
-        canvas = tk.Canvas(scroll_frame, highlightthickness=0,
+        canvas = tk.Canvas(sf, highlightthickness=0,
                            bg=self.root.style.colors.bg)
-        scrollbar = ttk.Scrollbar(scroll_frame, orient=VERTICAL,
-                                  command=canvas.yview)
-        cards_container = ttk.Frame(canvas)
+        sb = ttk.Scrollbar(sf, orient=VERTICAL, command=canvas.yview)
+        cc = ttk.Frame(canvas)
 
-        cards_container.bind("<Configure>",
-                             lambda e: canvas.configure(
-                                 scrollregion=canvas.bbox("all")))
+        cc.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.create_window((0, 0), window=cc, anchor=NW, tags="c")
+        canvas.configure(yscrollcommand=sb.set)
+        canvas.bind_all("<MouseWheel>",
+                        lambda e: canvas.yview_scroll(-int(e.delta / 120), "units"))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig("c", width=e.width))
 
-        canvas.create_window((0, 0), window=cards_container,
-                             anchor=NW, tags="container")
-        canvas.configure(yscrollcommand=scrollbar.set)
-
-        def _scroll(event):
-            canvas.yview_scroll(-1 * int(event.delta / 120), "units")
-        canvas.bind_all("<MouseWheel>", _scroll)
-
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(
-            "container", width=e.width))
-
-        # 创建卡片
         for i, task in enumerate(CONVERTERS):
-            card = self._make_card(cards_container, task)
+            card = self._make_card(cc, task)
             card.grid(row=i, column=0, sticky=EW, pady=5)
-            cards_container.columnconfigure(0, weight=1)
+            cc.columnconfigure(0, weight=1)
 
         canvas.pack(side=LEFT, fill=BOTH, expand=YES)
-        scrollbar.pack(side=RIGHT, fill=Y)
+        sb.pack(side=RIGHT, fill=Y)
 
         # ---- 底部状态 ----
         self.status_var = tk.StringVar(value="💡 点击上方卡片开始转换")
         self.status_lbl = ttk.Label(main, textvariable=self.status_var,
                                     font=("Microsoft YaHei UI", 9),
-                                    bootstyle="secondary",
-                                    padding=(14, 10))
+                                    bootstyle="secondary", padding=(14, 10))
         self.status_lbl.pack(fill=X, pady=(12, 0))
 
-    def _make_card(self, parent, task: ConverterTask) -> ttk.Frame:
-        card = ttk.Frame(parent, padding=16, bootstyle="light",
-                         cursor="hand2")
-
+    def _make_card(self, parent, task):
+        card = ttk.Frame(parent, padding=16, bootstyle="light", cursor="hand2")
         row = ttk.Frame(card)
         row.pack(fill=X)
-
         ttk.Label(row, text=task.icon, font=("Segoe UI", 18)).pack(side=LEFT)
         ttk.Label(row, text=task.name,
                   font=("Microsoft YaHei UI", 12, "bold"),
                   foreground="#1a1a2e").pack(side=LEFT, padx=(10, 0))
         ttk.Label(row, text="→", font=("Segoe UI", 12),
                   foreground="#1a56db").pack(side=RIGHT)
-
         ttk.Label(card, text=task.desc,
                   font=("Microsoft YaHei UI", 9),
                   foreground="#6b7280",
                   padding=(28, 6, 0, 0),
                   wraplength=550).pack(anchor=W)
 
-        # 卡片点击
-        for w in [card] + list(card.winfo_children()):
-            if isinstance(w, ttk.Frame):
-                for c in w.winfo_children():
-                    c.bind("<Button-1>", lambda e, t=task: self._convert(t))
+        def bind_recursive(w):
             w.bind("<Button-1>", lambda e, t=task: self._convert(t))
-
+            for c in w.winfo_children():
+                bind_recursive(c)
+        bind_recursive(card)
         return card
 
-    def _convert(self, task: ConverterTask):
+    # ==================== 设置弹窗 ====================
+
+    def _open_settings(self):
+        win = tk.Toplevel(self.root)
+        win.title("⚙️ 设置")
+        win.resizable(False, False)
+        win.transient(self.root)
+        win.grab_set()
+
+        f = ttk.Frame(win, padding=20)
+        f.pack(fill=BOTH, expand=YES)
+
+        # 主题
+        ttk.Label(f, text="🎨 主题",
+                  font=("Microsoft YaHei UI", 12, "bold")).pack(anchor=W)
+
+        theme_var = tk.StringVar(value=self.config.get("theme", "flatly"))
+        tf = ttk.Frame(f)
+        tf.pack(fill=X, pady=(6, 16))
+        for i, (tid, tl) in enumerate(THEME_OPTIONS):
+            ttk.Radiobutton(tf, text=tl, variable=theme_var,
+                            value=tid, bootstyle="info"
+                            ).grid(row=i // 2, column=i % 2, sticky=W, padx=(0, 16), pady=2)
+
+        # 窗口尺寸
+        ttk.Label(f, text="📐 窗口尺寸",
+                  font=("Microsoft YaHei UI", 12, "bold")).pack(anchor=W)
+        size_var = tk.StringVar(value=self.config.get("window_size", "medium"))
+        ssf = ttk.Frame(f)
+        ssf.pack(fill=X, pady=(6, 16))
+        for sid, sl in [("small", "📱 小 (600×480)"),
+                        ("medium", "💻 中 (780×620)"),
+                        ("large", "🖥️ 大 (960×760)")]:
+            ttk.Radiobutton(ssf, text=sl, variable=size_var,
+                            value=sid, bootstyle="info"
+                            ).pack(anchor=W, pady=2)
+
+        # 按钮
+        bf = ttk.Frame(f)
+        bf.pack(fill=X, pady=(12, 0))
+
+        def apply():
+            nt = theme_var.get()
+            ns = size_var.get()
+            changed_theme = nt != self.config.get("theme")
+            changed_size = ns != self.config.get("window_size")
+
+            self.config["theme"] = nt
+            self.config["window_size"] = ns
+
+            if ns in SIZE_PRESETS:
+                self._win_w, self._win_h = SIZE_PRESETS[ns]
+
+            save_config(self.config)
+            win.destroy()
+
+            if changed_theme:
+                self.root.style.theme_use(nt)
+                self._rebuild()
+            elif changed_size:
+                self.root.geometry(f"{self._win_w}x{self._win_h}")
+                self._center_window()
+
+            self._status("⚙️ 设置已应用", "info")
+
+        ttk.Button(bf, text="✅ 应用", command=apply,
+                   bootstyle="primary", padding=(24, 6)).pack(side=LEFT, padx=(0, 10))
+        ttk.Button(bf, text="取消", command=win.destroy,
+                   bootstyle="secondary", padding=(16, 6)).pack(side=LEFT)
+
+        win.update_idletasks()
+        wx = self.root.winfo_x() + (self._win_w - 440) // 2
+        wy = self.root.winfo_y() + (self._win_h - 320) // 2
+        win.geometry(f"440x320+{wx}+{wy}")
+
+    # ==================== 转换逻辑 ====================
+
+    def _convert(self, task):
         f = filedialog.askopenfilename(
             title=f"选择源文件 — {task.name}",
             initialdir=os.path.expanduser("~\\Desktop"),
@@ -175,7 +304,6 @@ class ConverterApp:
         )
         if not f:
             return
-
         default = os.path.splitext(f)[0] + task.target_ext
         out = filedialog.asksaveasfilename(
             title=f"保存为 {task.target_ext}",
@@ -186,7 +314,6 @@ class ConverterApp:
         )
         if not out:
             return
-
         self._status(f"⏳ 正在转换: {os.path.basename(f)} ...", "info")
 
         def worker():
@@ -195,20 +322,19 @@ class ConverterApp:
                 self.root.after(0, lambda: self._done(out))
             except Exception as e:
                 self.root.after(0, lambda: self._fail(str(e)))
-
         threading.Thread(target=worker, daemon=True).start()
 
-    def _done(self, path: str):
-        self._status("✅ 转换完成！", "success")
+    def _done(self, path):
+        self._status("✅ 转换成功！", "success")
         if messagebox.askyesno("转换成功",
                                f"✅ 文件已保存到:\n{path}\n\n是否打开所在文件夹？"):
             os.startfile(os.path.dirname(path))
 
-    def _fail(self, err: str):
+    def _fail(self, err):
         self._status("❌ 转换失败", "danger")
         messagebox.showerror("转换失败", f"❌ 错误:\n\n{err}")
 
-    def _status(self, text: str, style: str = "secondary"):
+    def _status(self, text, style="secondary"):
         self.status_var.set(text)
         clr = {"info": "#1a56db", "success": "#065f46",
                "danger": "#991b1b", "secondary": "#6b7280"}
@@ -217,8 +343,6 @@ class ConverterApp:
     def run(self):
         self.root.mainloop()
 
-
-# ==================== 入口 ====================
 
 def main():
     ConverterApp().run()
