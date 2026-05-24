@@ -249,12 +249,27 @@ class ConverterApp:
         v_sb = ttk.Scrollbar(sf, orient=VERTICAL, command=self._canvas.yview)
         h_sb = ttk.Scrollbar(sf, orient=HORIZONTAL, command=self._canvas.xview)
         cc = ttk.Frame(self._canvas)
-        cc.bind("<Configure>",
-                lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
         self._canvas.cc_window = self._canvas.create_window(
-            (0, 0), window=cc, anchor=NW, tags="c")
+            (0, 0), window=cc, anchor=N, tags="c")
         self._canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
 
+        # 居中 + 更新滚动区域
+        def _center(event=None):
+            if not self._canvas.winfo_exists():
+                return
+            cc.update_idletasks()
+            cw = self._canvas.winfo_width()
+            ch = self._canvas.winfo_height()
+            cw_req = cc.winfo_reqwidth()
+            ch_req = cc.winfo_reqheight()
+            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+            x = max(cw // 2, cw_req // 2)
+            y = max(0, (ch - ch_req) // 2) if ch_req < ch else 0
+            self._canvas.coords(self._canvas.cc_window, x, y)
+
+        cc.bind("<Configure>", _center, add="+")
+        self._canvas.bind("<Configure>", _center, add="+")
+        self.root.after(100, _center)
         # 滚轮：纵向（检查 canvas 存活，避免关闭弹窗后报错）
         def _scroll_y(event, c=self._canvas):
             if c.winfo_exists():
