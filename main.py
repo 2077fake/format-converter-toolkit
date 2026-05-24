@@ -119,7 +119,67 @@ class ConverterApp:
             self._win_w, self._win_h = 780, 620
         self.root.geometry(f"{self._win_w}x{self._win_h}")
         self._center_window()
+
+        # 自适应相关存储
+        self._desc_labels = []       # 卡片描述 Label
+        self._card_frames = []       # 卡片 Frame 引用
+        self._icon_labels = []       # 图标 Label
+        self._name_labels = []       # 卡片标题 Label
+        self._main_frame = None
+
         self._build_ui()
+        # 窗口大小变化监听
+        self.root.bind("<Configure>", self._on_window_resize, add="+")
+
+    def _scale(self) -> float:
+        """根据当前窗口宽度返回缩放倍数，以 780 为基准"""
+        w = max(self.root.winfo_width(), 600)
+        ratio = w / 780.0
+        return max(0.7, min(1.4, ratio))
+
+    def _on_window_resize(self, event=None):
+        """窗口大小变化时自适应调整字体/图标/折行"""
+        if not hasattr(self, '_desc_labels') or not self._desc_labels:
+            return
+        # 只在顶层窗口变化时处理
+        if event and event.widget != self.root:
+            return
+
+        s = self._scale()
+
+        # 1) 标题字体
+        if hasattr(self, '_heading_label') and self._heading_label:
+            sz = max(14, min(24, int(18 * s)))
+            self._heading_label.configure(font=("Microsoft YaHei UI", sz, "bold"))
+
+        # 2) 副标题
+        if hasattr(self, '_subtitle_label') and self._subtitle_label:
+            sz = max(8, min(13, int(10 * s)))
+            self._subtitle_label.configure(font=("Microsoft YaHei UI", sz))
+
+        # 3) 卡片图标 + 标题 + 描述折行
+        pad = max(10, min(24, int(16 * s)))
+        for i, task in enumerate(CONVERTERS):
+            if i < len(self._icon_labels):
+                sz = max(14, min(26, int(18 * s)))
+                self._icon_labels[i].configure(font=("Segoe UI", sz))
+            if i < len(self._name_labels):
+                sz = max(9, min(16, int(12 * s)))
+                self._name_labels[i].configure(font=("Microsoft YaHei UI", sz, "bold"))
+            if i < len(self._desc_labels):
+                sz = max(7, min(12, int(9 * s)))
+                # 折行宽度 = 当前 canvas 宽度 - 边距
+                cw = self._canvas.winfo_width() - 80 if self._canvas.winfo_width() > 80 else 300
+                wrap = max(200, min(800, int(cw)))
+                self._desc_labels[i].configure(font=("Microsoft YaHei UI", sz),
+                                               wraplength=wrap)
+
+        # 4) 卡片内边距
+        for card in self._card_frames:
+            try:
+                card.configure(padding=(pad, pad))
+            except Exception:
+                pass
 
     def _center_window(self):
         self.root.update_idletasks()
@@ -145,8 +205,9 @@ class ConverterApp:
         header = ttk.Frame(main)
         header.pack(fill=X, pady=(0, 4))
 
-        ttk.Label(header, text="📦 文档格式互转工具箱",
-                  font=("Microsoft YaHei UI", 18, "bold")).pack(side=LEFT)
+        self._heading_label = ttk.Label(header, text="📦 文档格式互转工具箱",
+                                        font=("Microsoft YaHei UI", 18, "bold"))
+        self._heading_label.pack(side=LEFT)
 
         right = ttk.Frame(header)
         right.pack(side=RIGHT)
@@ -160,43 +221,50 @@ class ConverterApp:
                    bootstyle="outline-secondary",
                    padding=(8, 2)).pack(side=RIGHT)
 
-        ttk.Label(main, text="选择一个转换方向，选取文件即可一键转换",
-                  font=("Microsoft YaHei UI", 10),
-                  foreground="#666").pack(anchor=W, pady=(0, 16))
+        self._subtitle_label = ttk.Label(main, text="选择一个转换方向，选取文件即可一键转换",
+                                         font=("Microsoft YaHei UI", 10),
+                                         foreground="#666")
+        self._subtitle_label.pack(anchor=W, pady=(0, 16))
 
         # ---- 可滚动卡片区（支持水平+垂直滚动）----
         sf = ttk.Frame(main)
         sf.pack(fill=BOTH, expand=YES)
 
-        canvas = tk.Canvas(sf, highlightthickness=0,
-                           bg=self.root.style.colors.bg)
-        v_sb = ttk.Scrollbar(sf, orient=VERTICAL, command=canvas.yview)
-        h_sb = ttk.Scrollbar(sf, orient=HORIZONTAL, command=canvas.xview)
-        cc = ttk.Frame(canvas)
+        self._canvas = tk.Canvas(sf, highlightthickness=0,
+                                 bg=self.root.style.colors.bg)
+        v_sb = ttk.Scrollbar(sf, orient=VERTICAL, command=self._canvas.yview)
+        h_sb = ttk.Scrollbar(sf, orient=HORIZONTAL, command=self._canvas.xview)
+        cc = ttk.Frame(self._canvas)
 
         cc.bind("<Configure>",
-                lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=cc, anchor=NW, tags="c")
-        canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
+                lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
+        self._canvas.create_window((0, 0), window=cc, anchor=NW, tags="c")
+        self._canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
 
         # 滚轮：纵向（检查 canvas 存活，避免关闭弹窗后报错）
-        def _scroll_y(event, c=canvas):
+        def _scroll_y(event, c=self._canvas):
             if c.winfo_exists():
                 c.yview_scroll(-int(event.delta / 120), "units")
-        canvas.bind_all("<MouseWheel>", _scroll_y)
+        self._canvas.bind_all("<MouseWheel>", _scroll_y)
 
         # Shift + 滚轮：横向
-        def _scroll_x(event, c=canvas):
+        def _scroll_x(event, c=self._canvas):
             if c.winfo_exists():
                 c.xview_scroll(-int(event.delta / 120), "units")
-        canvas.bind_all("<Shift-MouseWheel>", _scroll_x)
+        self._canvas.bind_all("<Shift-MouseWheel>", _scroll_x)
+
+        # 清空列表（防止 _rebuild 重复添加）
+        self._desc_labels.clear()
+        self._card_frames.clear()
+        self._icon_labels.clear()
+        self._name_labels.clear()
 
         for i, task in enumerate(CONVERTERS):
             card = self._make_card(cc, task)
             card.grid(row=i, column=0, sticky=EW, pady=5)
             cc.columnconfigure(0, weight=1)
 
-        canvas.grid(row=0, column=0, sticky=NSEW)
+        self._canvas.grid(row=0, column=0, sticky=NSEW)
         v_sb.grid(row=0, column=1, sticky=NS)
         h_sb.grid(row=1, column=0, sticky=EW)
         sf.grid_rowconfigure(0, weight=1)
@@ -213,17 +281,28 @@ class ConverterApp:
         card = ttk.Frame(parent, padding=16, bootstyle="light", cursor="hand2")
         row = ttk.Frame(card)
         row.pack(fill=X)
-        ttk.Label(row, text=task.icon, font=("Segoe UI", 18)).pack(side=LEFT)
-        ttk.Label(row, text=task.name,
-                  font=("Microsoft YaHei UI", 12, "bold"),
-                  foreground="#1a1a2e").pack(side=LEFT, padx=(10, 0))
+
+        icon_lbl = ttk.Label(row, text=task.icon, font=("Segoe UI", 18))
+        icon_lbl.pack(side=LEFT)
+        self._icon_labels.append(icon_lbl)
+
+        name_lbl = ttk.Label(row, text=task.name,
+                             font=("Microsoft YaHei UI", 12, "bold"),
+                             foreground="#1a1a2e")
+        name_lbl.pack(side=LEFT, padx=(10, 0))
+        self._name_labels.append(name_lbl)
+
         ttk.Label(row, text="→", font=("Segoe UI", 12),
                   foreground="#1a56db").pack(side=RIGHT)
-        ttk.Label(card, text=task.desc,
-                  font=("Microsoft YaHei UI", 9),
-                  foreground="#6b7280",
-                  padding=(28, 6, 0, 0),
-                  wraplength=550).pack(anchor=W)
+
+        desc_lbl = ttk.Label(card, text=task.desc,
+                             font=("Microsoft YaHei UI", 9),
+                             foreground="#6b7280",
+                             padding=(28, 6, 0, 0),
+                             wraplength=550)
+        desc_lbl.pack(anchor=W)
+        self._desc_labels.append(desc_lbl)
+        self._card_frames.append(card)
 
         def bind_recursive(w):
             w.bind("<Button-1>", lambda e, t=task: self._convert(t))
