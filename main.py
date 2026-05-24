@@ -262,7 +262,8 @@ class ConverterApp:
             cw_req = cc.winfo_reqwidth()
             ch_req = cc.winfo_reqheight()
             self._canvas.configure(scrollregion=self._canvas.bbox("all"))
-            x = max(0, (cw - cw_req) // 2)
+            # 列宽固定 540px (minsize)，直接用常量居中，不受字体/时机影响
+            x = max(0, (cw - 540) // 2)
             y = max(0, (ch - ch_req) // 2) if ch_req < ch else 0
             self._canvas.coords(self._canvas.cc_window, x, y)
 
