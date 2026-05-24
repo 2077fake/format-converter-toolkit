@@ -252,8 +252,30 @@ class ConverterApp:
 
         cc.bind("<Configure>",
                 lambda e: self._canvas.configure(scrollregion=self._canvas.bbox("all")))
-        self._canvas.create_window((0, 0), window=cc, anchor=NW, tags="c")
+        self._canvas.cc_window = self._canvas.create_window(
+            (0, 0), window=cc, anchor=NW, tags="c")
         self._canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
+
+        # 内容垂直居中：当内容高度小于画布时，自动下移居中
+        def _center_vertically(event=None):
+            if not self._canvas.winfo_exists():
+                return
+            cw = self._canvas.winfo_width()
+            ch = self._canvas.winfo_height()
+            # 获取内容高度
+            cc.update_idletasks()
+            content_h = cc.winfo_reqheight()
+            if content_h < ch and content_h > 0:
+                y_offset = (ch - content_h) // 2
+                self._canvas.coords(self._canvas.cc_window, cw // 2, y_offset)
+                self._canvas.itemconfig(self._canvas.cc_window, anchor=N)
+            else:
+                self._canvas.coords(self._canvas.cc_window, 0, 0)
+                self._canvas.itemconfig(self._canvas.cc_window, anchor=NW)
+
+        self._canvas.bind("<Configure>", _center_vertically, add="+")
+        # 初始居中
+        self.root.after(100, _center_vertically)
 
         # 滚轮：纵向（检查 canvas 存活，避免关闭弹窗后报错）
         def _scroll_y(event, c=self._canvas):
