@@ -262,8 +262,9 @@ class ConverterApp:
             cw_req = cc.winfo_reqwidth()
             ch_req = cc.winfo_reqheight()
             self._canvas.configure(scrollregion=self._canvas.bbox("all"))
-            # 列宽固定 540px (minsize)，直接用常量居中，不受字体/时机影响
-            x = max(0, (cw - 540) // 2)
+            # 用实际渲染宽度计算居中，适应不同字体
+            cw_actual = cc.winfo_width()
+            x = max(0, (cw - cw_actual) // 2)
             y = max(0, (ch - ch_req) // 2) if ch_req < ch else 0
             self._canvas.coords(self._canvas.cc_window, x, y)
 
@@ -291,7 +292,7 @@ class ConverterApp:
         for i, task in enumerate(CONVERTERS):
             card = self._make_card(cc, task)
             card.grid(row=i, column=0, sticky=EW, pady=5)
-            cc.columnconfigure(0, weight=0, minsize=540)
+            cc.columnconfigure(0, weight=0)
 
         self._canvas.grid(row=0, column=0, sticky=NSEW)
         v_sb.grid(row=0, column=1, sticky=NS)
