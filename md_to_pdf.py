@@ -19,6 +19,7 @@ Markdown 转 PDF 工具（支持 LaTeX 公式）
 import re
 import sys
 import os
+from latex_utils import simplify_tex
 
 
 def _check_fitz():
@@ -69,65 +70,8 @@ COLOR_HR = (0.8, 0.8, 0.8)
 LINE_SPACING = 1.4
 PARA_SPACING = 6.0
 
-# ==================== LaTeX 简化 ====================
-
-_LATEX_TO_UNICODE = [
-    (r'\\frac\{([^}]*)}\{([^}]*)\}', r'(\1)/(\2)'),
-    (r'\\sqrt\{([^}]*)\}', r'√(\1)'),
-    (r'\\sum', 'Σ'), (r'\\prod', 'Π'), (r'\\int', '∫'),
-    (r'\\infty', '∞'), (r'\\partial', '∂'),
-    (r'\\alpha', 'α'), (r'\\beta', 'β'), (r'\\gamma', 'γ'),
-    (r'\\delta', 'δ'), (r'\\epsilon', 'ε'), (r'\\theta', 'θ'),
-    (r'\\lambda', 'λ'), (r'\\mu', 'μ'), (r'\\pi', 'π'),
-    (r'\\sigma', 'σ'), (r'\\omega', 'ω'), (r'\\Omega', 'Ω'),
-    (r'\\Delta', 'Δ'), (r'\\Gamma', 'Γ'), (r'\\Lambda', 'Λ'),
-    (r'\\approx', '≈'), (r'\\equiv', '≡'), (r'\\neq', '≠'),
-    (r'\\leq', '≤'), (r'\\geq', '≥'), (r'\\ll', '≪'), (r'\\gg', '≫'),
-    (r'\\pm', '±'), (r'\\mp', '∓'), (r'\\times', '×'), (r'\\cdot', '·'),
-    (r'\\div', '÷'), (r'\\circ', '°'),
-    (r'\\parallel', '∥'), (r'\\perp', '⊥'),
-    (r'\\rightarrow', '→'), (r'\\Rightarrow', '⇒'),
-    (r'\\leftarrow', '←'), (r'\\Leftarrow', '⇐'),
-    (r'\\leftrightarrow', '↔'), (r'\\longrightarrow', '→'),
-    (r'\\mapsto', '↦'), (r'\\to', '→'),
-    (r'\\in', '∈'), (r'\\notin', '∉'),
-    (r'\\subset', '⊂'), (r'\\supset', '⊃'),
-    (r'\\subseteq', '⊆'), (r'\\cup', '∪'), (r'\\cap', '∩'),
-    (r'\\emptyset', '∅'), (r'\\forall', '∀'), (r'\\exists', '∃'),
-    (r'\\nabla', '∇'), (r'\\propto', '∝'),
-    (r'\\sim', '∼'), (r'\\cong', '≅'),
-    (r'\\cdots', '⋯'), (r'\\vdots', '⋮'), (r'\\ddots', '⋱'),
-    (r'\\therefore', '∴'), (r'\\because', '∵'),
-    (r'\\angle', '∠'), (r'\\triangle', '△'), (r'\\square', '□'),
-]
-
-
-def _simplify_tex(tex: str) -> str:
-    """将 LaTeX 公式转为可读的纯文本"""
-    t = tex.strip()
-    for pat, repl in _LATEX_TO_UNICODE:
-        t = re.sub(pat, repl, t)
-    t = re.sub(r'_\{([^}]+)\}', r'\1', t)
-    t = re.sub(r'\^\{([^}]+)\}', r'^\1', t)
-    t = re.sub(r'_([a-zA-Z0-9])', r'\1', t)
-    t = re.sub(r'\^([a-zA-Z0-9])', r'^\1', t)
-    t = re.sub(r'\\displaystyle\s*', '', t)
-    t = re.sub(r'\\text\{([^}]*)\}', r'\1', t)
-    t = re.sub(r'\\textrm\{([^}]*)\}', r'\1', t)
-    t = re.sub(r'\\begin\{cases\}', '{', t)
-    t = re.sub(r'\\end\{cases\}', '', t)
-    t = re.sub(r'\\\\', ' | ', t)
-    t = re.sub(r'\\qquad', '    ', t)
-    t = re.sub(r'\\quad', '  ', t)
-    t = re.sub(r'\\[;,]', ' ', t)
-    t = re.sub(r'\\!', '', t)
-    t = re.sub(r'\\left\s*', '', t)
-    t = re.sub(r'\\right\s*', '', t)
-    t = re.sub(r'\\big[lr]?\s*', '', t)
-    t = re.sub(r'\\Big[lr]?\s*', '', t)
-    t = re.sub(r'\\[a-zA-Z]+', '', t)
-    t = re.sub(r'\s+', ' ', t).strip()
-    return t
+# ==================== LaTeX 简化（使用共享模块 latex_utils） ====================
+# simplify_tex 从 latex_utils 导入，见文件顶部
 
 
 # ==================== Markdown 解析 ====================
@@ -353,7 +297,7 @@ def _emit_plain_segments(text: str, segments: list, math_items: list):
         if part.startswith('[MATH') and i + 1 < len(parts):
             idx = int(parts[i + 1])
             if idx < len(math_items):
-                segments.append(('math', _simplify_tex(math_items[idx])))
+                segments.append(('math', simplify_tex(math_items[idx])))
             i += 2
         else:
             if part.strip():
@@ -520,6 +464,83 @@ class PDFRenderer:
     def _draw_line(self, x0, y0, x1, y1, color=COLOR_HR, width=1.0):
         self.page.draw_line((x0, y0), (x1, y1), color=color, width=width)
 
+    def _flush_inline_line(self, items: list, x: float, y: float):
+        """绘制一行内包含不同格式的文本片段"""
+        for text, fs, bold, color, font in items:
+            if bold:
+                self._draw_text(x, y, text, fs, color=color, bold=True)
+            else:
+                self.page.insert_text((x, y), text, fontname=font,
+                                      fontsize=fs, color=color)
+            x += self._text_width(text, fs)
+
+    def _render_inline_block(self, text: str, start_x: float, fontsize: float,
+                             max_width: float, color=COLOR_DARK,
+                             extra_indent_cont=0):
+        """渲染带行内格式的文本块，自动折行"""
+        segments = _parse_inline(text)
+        if not segments:
+            return
+
+        plain = ''.join(s[1] for s in segments if s[0] != 'image')
+        if not plain.strip():
+            return
+
+        lh = fontsize * LINE_SPACING
+        lines = self._wrap_text(plain, fontsize, max_width)
+
+        seg_idx = 0
+        seg_pos = 0
+
+        for li, line in enumerate(lines):
+            self._check_space(lh + 2)
+            x = start_x + (extra_indent_cont if li > 0 else 0)
+
+            line_items = []
+            remaining = len(line)
+
+            while remaining > 0 and seg_idx < len(segments):
+                seg_type, seg_content = segments[seg_idx]
+                if seg_type == 'image':
+                    seg_idx += 1
+                    seg_pos = 0
+                    continue
+
+                avail = len(seg_content) - seg_pos
+                take = min(remaining, avail)
+
+                if take > 0:
+                    chunk = seg_content[seg_pos:seg_pos + take]
+                    fs = fontsize
+                    bold = False
+                    c = color
+                    font = FONT_CJK
+                    if seg_type == 'bold':
+                        bold = True
+                    elif seg_type == 'bold_italic':
+                        bold = True
+                    elif seg_type == 'code':
+                        fs = SIZE_CODE
+                        c = COLOR_CODE_TEXT
+                    elif seg_type == 'link':
+                        c = COLOR_LINK
+
+                    if line_items and line_items[-1][1:] == (fs, bold, c, font):
+                        line_items[-1] = (line_items[-1][0] + chunk, fs,
+                                          bold, c, font)
+                    else:
+                        line_items.append((chunk, fs, bold, c, font))
+
+                    remaining -= take
+                    seg_pos += take
+
+                if seg_pos >= len(seg_content):
+                    seg_idx += 1
+                    seg_pos = 0
+
+            self._flush_inline_line(line_items, x, self.y + fontsize * 0.85)
+            self._advance(lh)
+
     # ==================== 各元素渲染 ====================
 
     def render_heading(self, text: str, level: int):
@@ -563,7 +584,7 @@ class PDFRenderer:
         if not text.strip():
             return
         max_w = self._content_width() - indent
-        self._render_inline_text(text, MARGIN_LEFT + indent, fontsize, max_w)
+        self._render_inline_block(text, MARGIN_LEFT + indent, fontsize, max_w)
 
     def render_code_block(self, code: str, lang: str = ''):
         lh = SIZE_CODE * 1.25
@@ -599,21 +620,26 @@ class PDFRenderer:
 
         for idx, item in enumerate(items):
             prefix = f'{idx + 1}.' if ordered else '•'
-            full_text = f'{prefix} {item}'
 
             self._check_space(lh + 2)
-            self._render_inline_text(full_text, MARGIN_LEFT + 14, SIZE_BODY, max_w)
+            # 绘制前缀
+            self._draw_text(MARGIN_LEFT, self.y + SIZE_BODY * 0.85,
+                            prefix, SIZE_BODY, bold=True)
+            self._advance(lh)
+
+            # 渲染带格式的列表项内容
+            if item.strip():
+                self.y -= lh  # 回到前缀行
+                item_max_w = max_w - self._text_width(prefix + ' ', SIZE_BODY)
+                self._render_inline_block(item, MARGIN_LEFT + 14, SIZE_BODY,
+                                          item_max_w)
 
     def render_blockquote(self, text: str):
         lh = SIZE_BODY * 1.3
         max_w = self._content_width() - 22
-
-        # 左侧灰条：先计算需要的高度（按纯文本估算）
-        clean = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
-        clean = re.sub(r'`(.+?)`', r'\1', clean)
-        clean = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', clean)
-        clean = re.sub(r'\$([^$]+)\$', r'\1', clean)
-        lines = self._wrap_text(clean, SIZE_BODY, max_w)
+        segments = _parse_inline(text)
+        plain = ''.join(s[1] for s in segments if s[0] != 'image')
+        lines = self._wrap_text(plain, SIZE_BODY, max_w)
         total_h = lh * len(lines) + 10
 
         self._check_space(total_h + 4)
@@ -623,12 +649,51 @@ class PDFRenderer:
                         MARGIN_LEFT + 3, self.y + total_h,
                         fill=(0.75, 0.75, 0.75))
 
-        # 用 _render_inline_text 渲染保留格式
-        start_y = self.y
-        self._render_inline_text(text, MARGIN_LEFT + 10, SIZE_BODY, max_w)
-        # 确保总高度一致
-        if self.y < start_y + total_h:
-            self.y = start_y + total_h
+        # 逐行渲染带格式的文本
+        seg_idx = 0
+        seg_pos = 0
+        for line_text in lines:
+            line_items = []
+            remaining = len(line_text)
+            while remaining > 0 and seg_idx < len(segments):
+                seg_type, seg_content = segments[seg_idx]
+                if seg_type == 'image':
+                    seg_idx += 1
+                    seg_pos = 0
+                    continue
+                avail = len(seg_content) - seg_pos
+                take = min(remaining, avail)
+                if take > 0:
+                    chunk = seg_content[seg_pos:seg_pos + take]
+                    fs = SIZE_BODY
+                    bold = False
+                    c = COLOR_QUOTE_TEXT
+                    font = FONT_CJK
+                    if seg_type == 'bold':
+                        bold = True
+                    elif seg_type == 'bold_italic':
+                        bold = True
+                    elif seg_type == 'code':
+                        fs = SIZE_CODE
+                        c = COLOR_CODE_TEXT
+                    elif seg_type == 'link':
+                        c = COLOR_LINK
+
+                    if line_items and line_items[-1][1:] == (fs, bold, c, font):
+                        line_items[-1] = (line_items[-1][0] + chunk, fs,
+                                          bold, c, font)
+                    else:
+                        line_items.append((chunk, fs, bold, c, font))
+                    remaining -= take
+                    seg_pos += take
+                if seg_pos >= len(seg_content):
+                    seg_idx += 1
+                    seg_pos = 0
+
+            self._flush_inline_line(line_items, MARGIN_LEFT + 10,
+                                    self.y + SIZE_BODY * 0.85)
+            self._advance(lh)
+
         self._advance(6)
 
     def render_hr(self):
@@ -700,7 +765,7 @@ class PDFRenderer:
         self.y = row_y + 6
 
     def render_display_math(self, tex: str):
-        clean = _simplify_tex(tex)
+        clean = simplify_tex(tex)
         lh = SIZE_BODY * 1.5
         self._check_space(lh + 12)
         self._advance(6)
