@@ -332,7 +332,7 @@ def _iter_block_items(parent):
         if isinstance(child, CT_P):
             p = Paragraph(child, parent)
             # 跳过空段落（但保留结构）
-            if p.text.strip() or p.style.name.startswith('Heading'):
+            if p.text.strip() or (p.style and p.style.name and p.style.name.startswith('Heading')):
                 yield p
             else:
                 # 空段落作为分隔
