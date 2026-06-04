@@ -427,6 +427,89 @@ class PDFRenderer:
             self.page.insert_text((x, y), text, fontname=FONT_CJK,
                                   fontsize=fontsize, color=color)
 
+    def _segment_width(self, seg_type: str, content: str, fontsize: float) -> float:
+        """计算单个行内片段的渲染宽度"""
+        if seg_type == 'code':
+            return self._text_width(content, SIZE_CODE)
+        elif seg_type in ('math', 'text', 'italic', 'bold', 'bold_italic', 'link'):
+            return self._text_width(content, fontsize)
+        elif seg_type == 'image':
+            return self._text_width(f'[图片: {content}]', fontsize)
+        return 0
+
+    def _draw_segment(self, x: float, y: float, seg_type: str,
+                       content: str, fontsize: float) -> float:
+        """渲染单个行内片段，返回实际占用宽度"""
+        if seg_type in ('text', 'italic'):
+            self._draw_text(x, y, content, fontsize)
+            return self._text_width(content, fontsize)
+        elif seg_type in ('bold', 'bold_italic'):
+            self._draw_text(x, y, content, fontsize, bold=True)
+            return self._text_width(content, fontsize)
+        elif seg_type == 'code':
+            self.page.insert_text((x, y), content,
+                                  fontname=FONT_MONO, fontsize=SIZE_CODE,
+                                  color=COLOR_CODE_TEXT)
+            return self._text_width(content, SIZE_CODE)
+        elif seg_type == 'math':
+            self.page.insert_text((x, y), content,
+                                  fontname=FONT_MONO, fontsize=fontsize,
+                                  color=(0.15, 0.15, 0.15))
+            return self._text_width(content, fontsize)
+        elif seg_type == 'link':
+            self._draw_text(x, y, content, fontsize, color=COLOR_LINK)
+            return self._text_width(content, fontsize)
+        elif seg_type == 'image':
+            placeholder = f'[图片: {content}]'
+            self._draw_text(x, y, placeholder, fontsize, color=(0.6, 0.6, 0.6))
+            return self._text_width(placeholder, fontsize)
+        return 0
+
+    def _render_inline_text(self, text: str, x: float, fontsize: float = SIZE_BODY,
+                             max_width: float = None, y_offset: float = 0.85):
+        """渲染含行内格式（粗体/斜体/代码/链接/公式）的文本，自动换行。
+        返回渲染后的 y 坐标。"""
+        if max_width is None:
+            max_width = self._content_width()
+        if not text.strip():
+            return self.y
+
+        segments = _parse_inline(text)
+        if not segments:
+            return self.y
+
+        lh = fontsize * LINE_SPACING
+        cur_x = x
+        line_segs = []  # [(seg_type, content, width), ...]
+
+        def _flush_line():
+            nonlocal cur_x
+            self._check_space(lh)
+            cx = x
+            for st, ct, _ in line_segs:
+                w = self._draw_segment(cx, self.y + fontsize * y_offset, st, ct, fontsize)
+                cx += w
+            self._advance(lh)
+            line_segs.clear()
+            cur_x = x
+
+        for seg_type, content in segments:
+            w = self._segment_width(seg_type, content, fontsize)
+            if line_segs and cur_x + w > x + max_width:
+                _flush_line()
+            line_segs.append((seg_type, content, w))
+            cur_x += w
+
+        if line_segs:
+            self._check_space(lh)
+            cx = x
+            for st, ct, _ in line_segs:
+                w = self._draw_segment(cx, self.y + fontsize * y_offset, st, ct, fontsize)
+                cx += w
+            self._advance(lh)
+
+        return self.y
+
     def _draw_rect(self, x0, y0, x1, y1, fill=None, stroke=None):
         rect = self.fitz.Rect(x0, y0, x1, y1)
         if fill:
@@ -448,41 +531,39 @@ class PDFRenderer:
         self._check_space(lh + space_before + 4)
         self._advance(space_before)
 
-        # 去除行内格式标记
-        plain = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
-        plain = re.sub(r'`(.+?)`', r'\1', plain)
-        plain = re.sub(r'\$(.+?)\$', r'\1', plain)
-
-        # 标题加粗 + 彩色
+        # 标题：解析行内格式后，全部以加粗+彩色渲染
+        segments = _parse_inline(text)
         x = MARGIN_LEFT
         y_base = self.y + fs * 0.85
-        self._draw_text(x, y_base, plain, fs, color=COLOR_HEADING, bold=True)
+        for seg_type, content in segments:
+            if seg_type == 'code':
+                self.page.insert_text((x, y_base), content,
+                                      fontname=FONT_MONO, fontsize=SIZE_CODE,
+                                      color=COLOR_CODE_TEXT)
+                x += self._text_width(content, SIZE_CODE)
+            elif seg_type == 'math':
+                self.page.insert_text((x, y_base), content,
+                                      fontname=FONT_MONO, fontsize=fs,
+                                      color=(0.15, 0.15, 0.15))
+                x += self._text_width(content, fs)
+            elif seg_type == 'image':
+                placeholder = f'[图片: {content}]'
+                self._draw_text(x, y_base, placeholder, fs,
+                                color=COLOR_HEADING, bold=True)
+                x += self._text_width(placeholder, fs)
+            else:
+                self._draw_text(x, y_base, content, fs,
+                                color=COLOR_HEADING, bold=True)
+                x += self._text_width(content, fs)
         self._advance(lh + 2)
 
     def render_paragraph(self, text: str, indent: float = 0,
                          fontsize: float = SIZE_BODY):
-        """渲染段落（纯文本，行内格式标记保留）"""
+        """渲染段落，保留行内格式（粗体/斜体/代码/链接/公式）"""
         if not text.strip():
             return
-        lh = fontsize * LINE_SPACING
         max_w = self._content_width() - indent
-
-        # 去除内联格式标记获得纯文本
-        clean = text
-        clean = re.sub(r'\*\*\*(.+?)\*\*\*', r'\1', clean)
-        clean = re.sub(r'\*\*(.+?)\*\*', r'\1', clean)
-        clean = re.sub(r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)', r'\1', clean)
-        clean = re.sub(r'`(.+?)`', r'\1', clean)
-        clean = re.sub(r'\$([^$]+)\$', r'\1', clean)
-        clean = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', clean)
-
-        lines = self._wrap_text(clean, fontsize, max_w)
-        for line_text in lines:
-            self._check_space(lh + 2)
-            self._draw_text(MARGIN_LEFT + indent,
-                            self.y + fontsize * 0.85,
-                            line_text, fontsize)
-            self._advance(lh)
+        self._render_inline_text(text, MARGIN_LEFT + indent, fontsize, max_w)
 
     def render_code_block(self, code: str, lang: str = ''):
         lh = SIZE_CODE * 1.25
@@ -517,51 +598,37 @@ class PDFRenderer:
         max_w = self._content_width() - 24
 
         for idx, item in enumerate(items):
-            # 去除行内格式标记
-            clean = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', item)
-            clean = re.sub(r'`(.+?)`', r'\1', clean)
-            clean = re.sub(r'\$(.+?)\$', r'\1', clean)
-            clean = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', clean)
-
             prefix = f'{idx + 1}.' if ordered else '•'
-            full_text = f'{prefix} {clean}'
+            full_text = f'{prefix} {item}'
 
             self._check_space(lh + 2)
-            lines = self._wrap_text(full_text, SIZE_BODY, max_w)
-            for li, line_text in enumerate(lines):
-                if li > 0:
-                    self._advance(lh)
-                    self._check_space(lh)
-                indent_x = MARGIN_LEFT + 14 if li == 0 else MARGIN_LEFT + 22
-                self._draw_text(indent_x, self.y + SIZE_BODY * 0.85,
-                                line_text, SIZE_BODY)
-                self._advance(lh)
+            self._render_inline_text(full_text, MARGIN_LEFT + 14, SIZE_BODY, max_w)
 
     def render_blockquote(self, text: str):
         lh = SIZE_BODY * 1.3
         max_w = self._content_width() - 22
+
+        # 左侧灰条：先计算需要的高度（按纯文本估算）
         clean = re.sub(r'\*{1,3}(.+?)\*{1,3}', r'\1', text)
         clean = re.sub(r'`(.+?)`', r'\1', clean)
         clean = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', clean)
+        clean = re.sub(r'\$([^$]+)\$', r'\1', clean)
         lines = self._wrap_text(clean, SIZE_BODY, max_w)
         total_h = lh * len(lines) + 10
 
         self._check_space(total_h + 4)
         self._advance(4)
 
-        # 左侧灰条
         self._draw_rect(MARGIN_LEFT, self.y,
                         MARGIN_LEFT + 3, self.y + total_h,
                         fill=(0.75, 0.75, 0.75))
 
-        for line_text in lines:
-            self.page.insert_text(
-                (MARGIN_LEFT + 10, self.y + SIZE_BODY * 0.85),
-                line_text, fontname=FONT_CJK, fontsize=SIZE_BODY,
-                color=COLOR_QUOTE_TEXT
-            )
-            self._advance(lh)
-
+        # 用 _render_inline_text 渲染保留格式
+        start_y = self.y
+        self._render_inline_text(text, MARGIN_LEFT + 10, SIZE_BODY, max_w)
+        # 确保总高度一致
+        if self.y < start_y + total_h:
+            self.y = start_y + total_h
         self._advance(6)
 
     def render_hr(self):

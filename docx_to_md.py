@@ -165,13 +165,22 @@ def _is_code_block_paragraph(paragraph) -> bool:
         shd = pPr.find(qn('w:shd'))
         if shd is not None:
             fill = shd.get(qn('w:fill'), '')
-            if fill and fill.upper() in ('F0F0F0', 'F5F5F5', 'EFEFEF', 'FAFAFA', 'E8E8E8'):
-                return True
+            if fill:
+                # 代码块常见浅灰背景：从纯白到中灰的浅色范围
+                try:
+                    r, g, b = int(fill[0:2], 16), int(fill[2:4], 16), int(fill[4:6], 16)
+                    # 浅灰判定：RGB 三通道均 ≥ 0xC0（192），且不是纯白
+                    if r >= 0xC0 and g >= 0xC0 and b >= 0xC0 and (r, g, b) != (0xFF, 0xFF, 0xFF):
+                        return True
+                except (ValueError, IndexError):
+                    pass
     # 无背景色时，仅当所有非空 run 都是等宽字体才视为代码块
     runs = [r for r in paragraph.runs if r.text.strip()]
     if runs:
         mono_count = sum(1 for r in runs if (r.font.name or '').lower()
-                         in ('consolas', 'courier new', 'monospace', 'source code pro'))
+                         in ('consolas', 'courier new', 'monospace', 'source code pro',
+                             'fira code', 'jetbrains mono', 'cascadia code', 'liberation mono',
+                             'dejavu sans mono', 'menlo', 'monaco'))
         if mono_count == len(runs):
             return True
     return False
