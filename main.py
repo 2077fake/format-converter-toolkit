@@ -450,7 +450,7 @@ class ConverterApp:
             if ns in SIZE_PRESETS:
                 self._win_w, self._win_h = SIZE_PRESETS[ns]
             save_config(self.config)
-            win.destroy()
+            _cleanup_settings()
 
             rebuild = changed_theme or changed_font
             if changed_theme:
@@ -465,9 +465,16 @@ class ConverterApp:
             if rebuild or changed_size:
                 self.root.after(100, lambda: self._status("⚙️ 设置已应用", "info"))
 
+        def _cleanup_settings():
+            canvas.unbind_all("<MouseWheel>")
+            canvas.unbind_all("<Shift-MouseWheel>")
+            win.destroy()
+
+        win.protocol("WM_DELETE_WINDOW", _cleanup_settings)
+
         ttk.Button(bf, text="✅ 应用", command=apply,
                    bootstyle="primary", padding=(24, 8)).pack(side=LEFT, padx=(0, 12))
-        ttk.Button(bf, text="取消", command=win.destroy,
+        ttk.Button(bf, text="取消", command=_cleanup_settings,
                    bootstyle="secondary", padding=(16, 8)).pack(side=LEFT)
 
         # 设置弹窗大小 & 居中

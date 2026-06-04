@@ -1,29 +1,11 @@
-# Python
 __pycache__/
-*.py[cod]
+*.pyc
+*.pyo
+app_config.json
+*.docx
+*.pdf
+/dist/
+/build/
 *.egg-info/
-dist/
-build/
-
-# Virtualenv
 .venv/
 venv/
-env/
-
-# IDE
-.vscode/
-.idea/
-.vs/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Generated output files
-测试示例.docx
-*_output.docx
-*_output.md
-
-# User config
-app_config.json
-资源/*_converted.md
