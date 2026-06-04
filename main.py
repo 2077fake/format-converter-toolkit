@@ -55,6 +55,9 @@ SIZE_PRESETS = {
 def load_config() -> dict:
     if os.path.exists(CONFIG_FILE):
         try:
+            # 限制配置文件最大 64KB，防止恶意大文件耗尽内存
+            if os.path.getsize(CONFIG_FILE) > 64 * 1024:
+                return dict(DEFAULT_CONFIG)
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
                 cfg = json.load(f)
                 for k, v in DEFAULT_CONFIG.items():
@@ -267,17 +270,18 @@ class ConverterApp:
         cc.bind("<Configure>", _center, add="+")
         self._canvas.bind("<Configure>", _center, add="+")
         self.root.after(100, _center)
-        # 滚轮：纵向（检查 canvas 存活，避免关闭弹窗后报错）
+        # 滚轮：纵向（绑定到 canvas 自身，避免 bind_all 全局污染）
         def _scroll_y(event, c=self._canvas):
             if c.winfo_exists():
                 c.yview_scroll(-int(event.delta / 120), "units")
-        self._canvas.bind_all("<MouseWheel>", _scroll_y)
+        self._canvas.bind("<MouseWheel>", _scroll_y)
+        self._canvas.bind("<Enter>", lambda e, c=self._canvas: c.focus_set())
 
         # Shift + 滚轮：横向
         def _scroll_x(event, c=self._canvas):
             if c.winfo_exists():
                 c.xview_scroll(-int(event.delta / 120), "units")
-        self._canvas.bind_all("<Shift-MouseWheel>", _scroll_x)
+        self._canvas.bind("<Shift-MouseWheel>", _scroll_x)
 
         # 清空列表（防止 _rebuild 重复添加）
         self._desc_labels.clear()
@@ -369,8 +373,9 @@ class ConverterApp:
         def _scroll_x(event, c=canvas):
             if c.winfo_exists():
                 c.xview_scroll(-int(event.delta / 120), "units")
-        canvas.bind_all("<MouseWheel>", _scroll_y)
-        canvas.bind_all("<Shift-MouseWheel>", _scroll_x)
+        canvas.bind("<MouseWheel>", _scroll_y)
+        canvas.bind("<Shift-MouseWheel>", _scroll_x)
+        canvas.bind("<Enter>", lambda e, c=canvas: c.focus_set())
 
         canvas.grid(row=0, column=0, sticky=NSEW)
         v_sb.grid(row=0, column=1, sticky=NS)
