@@ -311,7 +311,7 @@ def _merge_blocks(blocks: list) -> TextBlock:
 # ==================== 标题检测 ====================
 
 def _detect_heading(block: TextBlock, base_size: float) -> int:
-    """检测是否标题，返回级别 1~3，0=非标题。改进版：抑制误判"""
+    """检测是否标题，返回级别 1~3，0=非标题。改进版：抑制误判，增加更多标题模式"""
     text = block.text.strip()
     if not text or len(text) > 150:
         return 0
@@ -325,20 +325,29 @@ def _detect_heading(block: TextBlock, base_size: float) -> int:
     if avg >= base_size * 1.35:
         return 2
 
-    # 条件2：字号略大 + 加粗 + 短文本（< 50 字符）
-    if avg >= base_size * 1.12 and block.is_bold and len(text) < 50:
-        return 3
+    # 条件2：字号略大 + 加粗 + 短文本（< 60 字符）
+    if avg >= base_size * 1.12 and block.is_bold and len(text) < 60:
+        # 排除网址
+        if not text.startswith('http'):
+            return 3
 
-    # 条件3：加粗 + 中文编号开头（一、/ 1.）+ 短文本
+    # 条件3：加粗 + 中文编号开头（一、/ 1. / (1)）+ 短文本
     if block.is_bold and len(text) < 60 and avg >= base_size * 0.95:
         if re.match(r'^[\d一二三四五六七八九十]+[.)、]\s*\S', text):
             return 3
         if re.match(r'^第[一二三四五六七八九十\d]+[章节部分条]\s', text):
             return 3
+        if re.match(r'^（?[\d一二三四五六七八九十]+）\s*\S', text):
+            return 3
 
     # 条件4：全大写短标题（英文）
     if block.is_bold and 5 < len(text) < 50 and text.isupper() and avg >= base_size * 1.05:
         return 3
+
+    # 条件5：无加粗但字号明显大 + 短文本（如章节目录）
+    if avg >= base_size * 1.2 and len(text) < 40:
+        if re.match(r'^[\d一二三四五六七八九十]+[.、]', text):
+            return 3
 
     return 0
 
@@ -549,11 +558,34 @@ def convert_pdf_to_md(input_path: str, output_path: str = None) -> str:
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print('用法: python pdf_to_md.py input.pdf [output.md]')
-        print('示例: python pdf_to_md.py 报告.pdf')
-        print('      python pdf_to_md.py 报告.pdf 报告.md')
+        print('📝 PDF → Markdown 转换工具')
+        print(f'用法: python {os.path.basename(__file__)} <input.pdf> [output.md]')
+        print(f'      python {os.path.basename(__file__)} <input_dir> --batch')
+        print('示例:')
+        print('  python pdf_to_md.py 报告.pdf')
+        print('  python pdf_to_md.py 报告.pdf 报告.md')
+        print('  python pdf_to_md.py ./pdf_files/ --batch')
         sys.exit(0)
 
-    input_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
-    convert_pdf_to_md(input_file, output_file)
+    input_path = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
+        import glob
+        input_dir = input_path
+        if not os.path.isdir(input_dir):
+            print(f"❌ 目录不存在: {input_dir}")
+            sys.exit(1)
+        pdf_files = glob.glob(os.path.join(input_dir, '*.pdf'))
+        if not pdf_files:
+            print(f"❌ 目录中未找到 .pdf 文件: {input_dir}")
+            sys.exit(1)
+        print(f"📦 批量转换 {len(pdf_files)} 个文件...")
+        success = 0
+        for f in pdf_files:
+            try:
+                convert_pdf_to_md(f)
+                success += 1
+            except Exception as e:
+                print(f"❌ 转换失败 {f}: {e}")
+        print(f"✅ 批量完成: {success}/{len(pdf_files)}")
+    else:
+        convert_pdf_to_md(input_path, sys.argv[2] if len(sys.argv) > 2 else None)

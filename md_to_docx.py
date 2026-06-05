@@ -256,6 +256,46 @@ def _add_math_text(paragraph, tex: str, inline: bool = False):
                   italic=True, color=MATH_COLOR)
 
 
+def _add_hyperlink(paragraph, text: str, url: str):
+    """在 Word 段落中添加可点击的超链接"""
+    from docx.oxml.ns import qn
+    from lxml import etree
+    # 创建超链接关系
+    part = paragraph.part
+    r_id = part.relate_to(
+        url,
+        'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
+        is_external=True
+    )
+    # 手动构建 XML 元素避免命名空间问题
+    NS_W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+    NS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+
+    hyperlink = etree.SubElement(paragraph._element, f'{{{NS_W}}}hyperlink')
+    hyperlink.set(f'{{{NS_R}}}id', r_id)
+
+    run = etree.SubElement(hyperlink, f'{{{NS_W}}}r')
+    rpr = etree.SubElement(run, f'{{{NS_W}}}rPr')
+    # 超链接样式
+    rstyle = etree.SubElement(rpr, f'{{{NS_W}}}rStyle')
+    rstyle.set(f'{{{NS_W}}}val', 'Hyperlink')
+    # 字体颜色
+    color = etree.SubElement(rpr, f'{{{NS_W}}}color')
+    color.set(f'{{{NS_W}}}val', '1A56DB')
+    # 下划线
+    u = etree.SubElement(rpr, f'{{{NS_W}}}u')
+    u.set(f'{{{NS_W}}}val', 'single')
+    # 字体
+    rfonts = etree.SubElement(rpr, f'{{{NS_W}}}rFonts')
+    rfonts.set(f'{{{NS_W}}}eastAsia', BODY_FONT)
+    rfonts.set(f'{{{NS_W}}}ascii', BODY_FONT)
+    rfonts.set(f'{{{NS_W}}}hAnsi', BODY_FONT)
+
+    t = etree.SubElement(run, f'{{{NS_W}}}t')
+    t.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+    t.text = text
+
+
 def process_inline_text(paragraph, text: str):
     """处理行内格式：$...$ 公式、**粗体**、*斜体*、`代码`、[链接]"""
     math_items = []
@@ -264,18 +304,20 @@ def process_inline_text(paragraph, text: str):
         math_items.append(m.group(1))
         return f'[MATH{len(math_items) - 1}]'
 
+    # 先保护 $ 公式
     text = re.sub(r'(?<!\$)\$(?!\$)(.+?)(?<!\$)\$(?!\$)', _save_math, text)
 
+    # 注意：模式顺序很重要，长模式在前
     pattern = (
-        r'(\*\*\*(.+?)\*\*\*|'
-        r'___\s*(.+?)\s*___|'
-        r'\*\*(.+?)\*\*|'
-        r'__\s*(.+?)\s*__|'
-        r'\*(.+?)\*|'
-        r'_\s*(.+?)\s*_|'
-        r'`(.+?)`|'
-        r'!\[(.*?)\]\((.+?)\)|'
-        r'\[(.+?)\]\((.+?)\))'
+        r'(\*\*\*(.+?)\*\*\*|'      # ***bold italic***
+        r'___\s*(.+?)\s*___|'          # ___bold italic___
+        r'\*\*(.+?)\*\*|'              # **bold**
+        r'__\s*(.+?)\s*__|'             # __bold__
+        r'(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|'  # *italic* (不匹配 **)
+        r'(?<!_)_(?!_)\s*(.+?)\s*(?<!_)_(?!_)|'      # _italic_
+        r'`(.+?)`|'                     # `code`
+        r'!\[(.*?)\]\((.+?)\)|'      # ![alt](url)
+        r'\[(.+?)\]\((.+?)\))'        # [text](url)
     )
 
     last = 0
@@ -305,8 +347,8 @@ def process_inline_text(paragraph, text: str):
             _make_run(paragraph, f'[图片: {m.group(9)}]',
                       italic=True, color=RGBColor(0x99, 0x99, 0x99))
         elif m.group(11):
-            run = _make_run(paragraph, m.group(11), color=RGBColor(0x1A, 0x56, 0xDB))
-            run.underline = True
+            # 可点击超链接
+            _add_hyperlink(paragraph, m.group(11), m.group(12))
 
     if last < len(text):
         _emit_segment(paragraph, text[last:], math_items)
@@ -467,10 +509,34 @@ def convert_md_to_docx(input_path: str, output_path: str = None):
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("📝 Markdown → Word 转换工具 (支持 LaTeX 公式)")
-        print(f"用法: python {os.path.basename(__file__)} input.md [output.docx]")
+        print(f"用法: python {os.path.basename(__file__)} <input.md> [output.docx]")
+        print(f"      python {os.path.basename(__file__)} <input_dir> --batch")
         print()
         print("示例:")
         print(f"  python {os.path.basename(__file__)} readme.md")
         print(f"  python {os.path.basename(__file__)} readme.md 输出.docx")
+        print(f"  python {os.path.basename(__file__)} ./markdown_files/ --batch")
+        sys.exit(0)
+
+    input_path = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
+        import glob
+        input_dir = input_path
+        if not os.path.isdir(input_dir):
+            print(f"❌ 目录不存在: {input_dir}")
+            sys.exit(1)
+        md_files = glob.glob(os.path.join(input_dir, '*.md'))
+        if not md_files:
+            print(f"❌ 目录中未找到 .md 文件: {input_dir}")
+            sys.exit(1)
+        print(f"📦 批量转换 {len(md_files)} 个文件...")
+        success = 0
+        for f in md_files:
+            try:
+                convert_md_to_docx(f)
+                success += 1
+            except Exception as e:
+                print(f"❌ 转换失败 {f}: {e}")
+        print(f"✅ 批量完成: {success}/{len(md_files)}")
     else:
-        convert_md_to_docx(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
+        convert_md_to_docx(input_path, sys.argv[2] if len(sys.argv) > 2 else None)

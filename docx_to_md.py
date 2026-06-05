@@ -53,6 +53,30 @@ def _is_list_item(paragraph) -> tuple:
             numId = numPr.find(qn('w:numId'))
             level = int(ilvl.get(qn('w:val'), '0')) if ilvl is not None else 0
             if numId is not None:
+                # 检查 numId 对应的编号格式是 bullet 还是 number
+                # 通过查看文档的 numbering 部件判断
+                try:
+                    numbering_part = paragraph.part.numbering_part
+                    if numbering_part is not None:
+                        num_xml = numbering_part._element
+                        num_def = num_xml.find(f'{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}num[@{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}numId="{numId.get(qn("w:val"))}"]')
+                        if num_def is not None:
+                            abstract_num_id = num_def.find(qn('w:abstractNumId'))
+                            if abstract_num_id is not None:
+                                abs_id = abstract_num_id.get(qn('w:val'))
+                                abs_num = num_xml.find(f'{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}abstractNum[@{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}abstractNumId="{abs_id}"]')
+                                if abs_num is not None:
+                                    lvl_elem = abs_num.find(f'{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}lvl[@{{http://schemas.openxmlformats.org/wordprocessingml/2006/main}}ilvl="{level}"]')
+                                    if lvl_elem is not None:
+                                        num_fmt = lvl_elem.find(qn('w:numFmt'))
+                                        if num_fmt is not None:
+                                            fmt_val = num_fmt.get(qn('w:val'), '')
+                                            if fmt_val in ('bullet', 'hybridBullet'):
+                                                return ('ul', level)
+                                            else:
+                                                return ('ol', level)
+                except (AttributeError, KeyError, ValueError):
+                    pass
                 return ('ol', level)
     # 手动词头检测
     text = paragraph.text.strip()
@@ -158,31 +182,43 @@ def _extract_table(table) -> str:
 # ==================== 文档转换 ====================
 
 def _is_code_block_paragraph(paragraph) -> bool:
-    """判断段落是否为代码块（背景色优先；仅字体匹配但无背景不算，避免行内代码误判）"""
-    # 优先检查背景色（代码块必有）
+    """判断段落是否为代码块（综合背景色 + 字体 + 字号判断）"""
+    runs = [r for r in paragraph.runs if r.text.strip()]
+    if not runs:
+        return False
+
+    # 1) 检查是否所有非空 run 都是等宽字体
+    mono_fonts = {'consolas', 'courier new', 'monospace', 'source code pro',
+                  'fira code', 'jetbrains mono', 'cascadia code', 'liberation mono',
+                  'dejavu sans mono', 'menlo', 'monaco', 'sf mono', 'inconsolata',
+                  'ubuntu mono', 'droid sans mono', 'pt mono', 'noto mono'}
+    mono_count = sum(1 for r in runs if (r.font.name or '').lower() in mono_fonts)
+    if mono_count == len(runs):
+        return True
+
+    # 2) 检查段落背景色（浅灰通常表示代码块）
     pPr = paragraph._element.find(qn('w:pPr'))
     if pPr is not None:
         shd = pPr.find(qn('w:shd'))
         if shd is not None:
             fill = shd.get(qn('w:fill'), '')
             if fill:
-                # 代码块常见浅灰背景：从纯白到中灰的浅色范围
                 try:
                     r, g, b = int(fill[0:2], 16), int(fill[2:4], 16), int(fill[4:6], 16)
-                    # 浅灰判定：RGB 三通道均 ≥ 0xC0（192），且不是纯白
+                    # 浅灰背景（非纯白）+ 等宽字体比例 > 一半
                     if r >= 0xC0 and g >= 0xC0 and b >= 0xC0 and (r, g, b) != (0xFF, 0xFF, 0xFF):
-                        return True
+                        if mono_count >= len(runs) * 0.5:
+                            return True
                 except (ValueError, IndexError):
                     pass
-    # 无背景色时，仅当所有非空 run 都是等宽字体才视为代码块
-    runs = [r for r in paragraph.runs if r.text.strip()]
+
+    # 3) 检查字号是否明显小于正文字号（代码块通常用更小字号）
     if runs:
-        mono_count = sum(1 for r in runs if (r.font.name or '').lower()
-                         in ('consolas', 'courier new', 'monospace', 'source code pro',
-                             'fira code', 'jetbrains mono', 'cascadia code', 'liberation mono',
-                             'dejavu sans mono', 'menlo', 'monaco'))
-        if mono_count == len(runs):
-            return True
+        avg_size = sum(r.font.size.pt if r.font.size else 11 for r in runs) / len(runs)
+        if avg_size <= 9.5:  # 代码块通常 ≤ 9.5pt
+            if mono_count >= len(runs) * 0.3:  # 有部分等宽字体即可
+                return True
+
     return False
 
 
@@ -345,9 +381,37 @@ def _iter_block_items(parent):
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print('用法: python docx_to_md.py input.docx [output.md]')
-        print('示例: python docx_to_md.py 报告.docx')
-        print('      python docx_to_md.py 报告.docx 报告.md')
+        print('📝 Word → Markdown 转换工具')
+        print(f'用法: python {os.path.basename(__file__)} <input.docx> [output.md]')
+        print(f'      python {os.path.basename(__file__)} <input_dir> --batch')
+        print('示例:')
+        print('  python docx_to_md.py 报告.docx')
+        print('  python docx_to_md.py 报告.docx 报告.md')
+        print('  python docx_to_md.py ./docx_files/ --batch')
+        sys.exit(0)
+
+    input_path = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
+        import glob
+        input_dir = input_path
+        if not os.path.isdir(input_dir):
+            print(f"❌ 目录不存在: {input_dir}")
+            sys.exit(1)
+        docx_files = glob.glob(os.path.join(input_dir, '*.docx'))
+        if not docx_files:
+            print(f"❌ 目录中未找到 .docx 文件: {input_dir}")
+            sys.exit(1)
+        print(f"📦 批量转换 {len(docx_files)} 个文件...")
+        success = 0
+        for f in docx_files:
+            try:
+                convert_docx_to_md(f)
+                success += 1
+            except Exception as e:
+                print(f"❌ 转换失败 {f}: {e}")
+        print(f"✅ 批量完成: {success}/{len(docx_files)}")
+    else:
+        convert_docx_to_md(input_path, sys.argv[2] if len(sys.argv) > 2 else None)
         sys.exit(0)
 
     input_file = sys.argv[1]
