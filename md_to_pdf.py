@@ -341,17 +341,31 @@ class PDFRenderer:
         return self.fitz.get_text_length(text, fontname=FONT_CJK, fontsize=fontsize)
 
     def _wrap_text(self, text: str, fontsize: float, max_width: float) -> list:
-        """逐字折行（中英文混排）"""
+        """智能折行（优化版：按单词折行，提高性能）"""
         if not text:
             return ['']
         lines = []
+        # 按空白字符分割
+        words = re.split(r'(\s+)', text)
         cur = ''
-        for ch in text:
-            if self._text_width(cur + ch, fontsize) > max_width and cur:
-                lines.append(cur)
-                cur = ch
+        for word in words:
+            if not word:
+                continue
+            if self._text_width(cur + word, fontsize) > max_width:
+                if cur:
+                    lines.append(cur)
+                # 如果单个词就超过行宽，逐字符折行
+                if self._text_width(word, fontsize) > max_width:
+                    for ch in word:
+                        if self._text_width(cur + ch, fontsize) > max_width and cur:
+                            lines.append(cur)
+                            cur = ch
+                        else:
+                            cur += ch
+                else:
+                    cur = word
             else:
-                cur += ch
+                cur += word
         if cur:
             lines.append(cur)
         return lines
@@ -854,10 +868,34 @@ def convert_md_to_pdf(input_path: str, output_path: str = None):
 if __name__ == '__main__':
     if len(sys.argv) < 2:
         print("📝 Markdown → PDF 转换工具 (支持 LaTeX 公式)")
-        print(f"用法: python {os.path.basename(__file__)} input.md [output.pdf]")
+        print(f"用法: python {os.path.basename(__file__)} <input.md> [output.pdf]")
+        print(f"      python {os.path.basename(__file__)} <input_dir> --batch")
         print()
         print("示例:")
         print(f"  python {os.path.basename(__file__)} readme.md")
         print(f"  python {os.path.basename(__file__)} readme.md 输出.pdf")
+        print(f"  python {os.path.basename(__file__)} ./markdown_files/ --batch")
+        sys.exit(0)
+
+    input_path = sys.argv[1]
+    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
+        import glob
+        input_dir = input_path
+        if not os.path.isdir(input_dir):
+            print(f"❌ 目录不存在: {input_dir}")
+            sys.exit(1)
+        md_files = glob.glob(os.path.join(input_dir, '*.md'))
+        if not md_files:
+            print(f"❌ 目录中未找到 .md 文件: {input_dir}")
+            sys.exit(1)
+        print(f"📦 批量转换 {len(md_files)} 个文件...")
+        success = 0
+        for f in md_files:
+            try:
+                convert_md_to_pdf(f)
+                success += 1
+            except Exception as e:
+                print(f"❌ 转换失败 {f}: {e}")
+        print(f"✅ 批量完成: {success}/{len(md_files)}")
     else:
-        convert_md_to_pdf(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
+        convert_md_to_pdf(input_path, sys.argv[2] if len(sys.argv) > 2 else None)

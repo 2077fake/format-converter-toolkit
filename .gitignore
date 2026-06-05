@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 *.pyo
 app_config.json
+conversion_history.json
 *.docx
 *.pdf
 /dist/
@@ -9,3 +10,6 @@ app_config.json
 *.egg-info/
 .venv/
 venv/
+资源/*_output.*
+资源/*_roundtrip.*
+资源/*_from_pdf.*
