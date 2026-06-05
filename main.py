@@ -1,7 +1,6 @@
 """
-格式转换工具箱 — Windows 11 桌面应用
-基于 tkinter + ttkbootstrap 现代主题
-支持亮色/暗色主题切换和窗口尺寸调节
+格式转换工具箱 — Qt (PySide6) 桌面应用
+现代化界面，卡片式布局，支持主题切换
 双击运行或: python main.py
 """
 
@@ -12,50 +11,53 @@ import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-import ttkbootstrap as ttk
-from ttkbootstrap.constants import *
-from tkinter import filedialog, messagebox
-import tkinter as tk
-
+from PySide6.QtWidgets import (
+    QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
+    QLabel, QPushButton, QFrame, QScrollArea, QMessageBox,
+    QFileDialog, QDialog, QFormLayout, QDialogButtonBox,
+    QGridLayout, QLineEdit, QComboBox
+)
+from PySide6.QtGui import QPainter, QPalette, QColor, QFont, QPaintEvent
+from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QPoint, QEasingCurve, QSize
 
 # ==================== 配置管理 ====================
 
 CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app_config.json")
 
 DEFAULT_CONFIG = {
-    "theme": "flatly",
-    "window_size": "medium",
+    "theme": "light",
     "font_family": "Microsoft YaHei UI",
+    "window_size": "medium",
 }
 
-THEME_OPTIONS = [
-    ("flatly",  "☀️ 亮色"),
-    ("darkly",  "🌙 暗色"),
-    ("solar",   "👁️ 护眼"),
-]
+THEME_LIGHT = {
+    "bg": "#f5f7fa",
+    "card_bg": "#ffffff",
+    "text": "#1a1a2e",
+    "text_secondary": "#6b7280",
+    "accent": "#1a56db",
+    "border": "#e5e7eb",
+    "hover": "#f0f4ff",
+    "success": "#10b981",
+    "error": "#ef4444",
+}
 
-FONT_OPTIONS = [
-    ("Microsoft YaHei UI",      "微软雅黑 (默认)"),
-    ("SimSun",                  "宋体"),
-    ("SimHei",                  "黑体"),
-    ("KaiTi",                   "楷体"),
-    ("DengXian",                "等线"),
-    ("Microsoft JhengHei UI",   "微軟正黑體"),
-    ("Segoe UI",                "Segoe UI"),
-    ("Arial",                   "Arial"),
-]
-
-SIZE_PRESETS = {
-    "small":  (600, 480),
-    "medium": (780, 620),
-    "large":  (960, 760),
+THEME_DARK = {
+    "bg": "#1a1a2e",
+    "card_bg": "#16213e",
+    "text": "#e2e8f0",
+    "text_secondary": "#94a3b8",
+    "accent": "#3b82f6",
+    "border": "#2d3748",
+    "hover": "#1e3a8a",
+    "success": "#10b981",
+    "error": "#f87171",
 }
 
 
 def load_config() -> dict:
     if os.path.exists(CONFIG_FILE):
         try:
-            # 限制配置文件最大 64KB，防止恶意大文件耗尽内存
             if os.path.getsize(CONFIG_FILE) > 64 * 1024:
                 return dict(DEFAULT_CONFIG)
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
@@ -98,446 +100,339 @@ from pdf_to_md import convert_pdf_to_md
 from md_to_pdf import convert_md_to_pdf
 
 CONVERTERS = [
-    ConverterTask("Markdown → Word", "\U0001f4dd\u27a1\U0001f4c4",
-                  "将 Markdown 转为精美的 Word 文档",
+    ConverterTask("Markdown → Word", "📝➜📄",
+                  "将 Markdown 转为精美的 Word 文档，支持 LaTeX 公式、表格、代码块等完整 Markdown 语法",
                   ".md", ".docx", convert_md_to_docx),
-    ConverterTask("Word → Markdown", "\U0001f4c4\u27a1\U0001f4dd",
-                  "将 Word 文档转为 Markdown 格式",
+    ConverterTask("Word → Markdown", "📄➜📝",
+                  "将 Word 文档转为 Markdown 格式，保留标题、格式、列表、表格和超链接",
                   ".docx", ".md", convert_docx_to_md),
-    ConverterTask("Markdown → PDF", "\U0001f4dd\u27a1\U0001f4d1",
-                  "将 Markdown 转为 A4 排版 PDF",
+    ConverterTask("Markdown → PDF", "📝➜📑",
+                  "将 Markdown 转为 A4 排版精美的 PDF 文档，支持中文混排",
                   ".md", ".pdf", convert_md_to_pdf),
-    ConverterTask("PDF → Markdown", "\U0001f4d1\u27a1\U0001f4dd",
-                  "将 PDF 提取为 Markdown 文本",
+    ConverterTask("PDF → Markdown", "📑➜📝",
+                  "将 PDF 提取为 Markdown 文本，智能识别标题、格式和表格结构",
                   ".pdf", ".md", convert_pdf_to_md),
 ]
 
 
-# ==================== 主窗口 ====================
+# ==================== 样式工具类 ====================
 
-class ConverterApp:
-    def __init__(self):
-        self.config = load_config()
-        theme = self.config.get("theme", "flatly")
-        self.root = ttk.Window(themename=theme)
-        self.root.title("📦 文档格式互转工具箱")
-        self.root.minsize(600, 480)
+class StyleHelper:
+    @staticmethod
+    def get_theme_colors(theme_name: str) -> dict:
+        if theme_name == "dark":
+            return THEME_DARK
+        return THEME_LIGHT
 
-        size_name = self.config.get("window_size", "medium")
-        if size_name in SIZE_PRESETS:
-            self._win_w, self._win_h = SIZE_PRESETS[size_name]
-        else:
-            self._win_w, self._win_h = 780, 620
-        self.root.geometry(f"{self._win_w}x{self._win_h}")
-        self._center_window()
+    @staticmethod
+    def apply_global_stylesheet(app: QApplication, theme_name: str):
+        colors = StyleHelper.get_theme_colors(theme_name)
+        app.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {colors['bg']};
+            }}
+            QLabel {{
+                color: {colors['text']};
+                font-family: 'Microsoft YaHei UI';
+            }}
+            QPushButton {{
+                background-color: {colors['accent']};
+                color: white;
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
+                font-family: 'Microsoft YaHei UI';
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {QColor(colors['accent']).darker(110).name()};
+            }}
+            QPushButton:pressed {{
+                background-color: {QColor(colors['accent']).darker(120).name()};
+            }}
+            QDialog {{
+                background-color: {colors['bg']};
+            }}
+            QScrollBar:vertical {{
+                background-color: {colors['bg']};
+                width: 8px;
+                border-radius: 4px;
+            }}
+            QScrollBar::handle:vertical {{
+                background-color: {colors['border']};
+                border-radius: 4px;
+                min-height: 20px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background-color: {colors['text_secondary']};
+            }}
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+                height: 0px;
+            }}
+            QScrollBar:horizontal {{
+                background-color: {colors['bg']};
+                height: 8px;
+                border-radius: 4px;
+            }}
+            QScrollBar::handle:horizontal {{
+                background-color: {colors['border']};
+                border-radius: 4px;
+                min-width: 20px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background-color: {colors['text_secondary']};
+            }}
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
+                width: 0px;
+            }}
+        """)
 
-        # 自适应相关存储
-        self._desc_labels = []       # 卡片描述 Label
-        self._card_frames = []       # 卡片 Frame 引用
-        self._icon_labels = []       # 图标 Label
-        self._name_labels = []       # 卡片标题 Label
-        self._main_frame = None
 
-        self._build_ui()
-        # 窗口大小变化监听
-        self.root.bind("<Configure>", self._on_window_resize, add="+")
+# ==================== 卡片组件 ====================
 
-    def _scale(self) -> float:
-        """根据当前窗口宽度返回缩放倍数，以 780 为基准"""
-        w = max(self.root.winfo_width(), 600)
-        ratio = w / 780.0
-        return max(0.7, min(1.4, ratio))
+class ConverterCard(QFrame):
+    clicked = Signal(object)
 
-    @property
-    def _font(self) -> str:
-        """返回用户配置的界面字体"""
-        return self.config.get("font_family", "Microsoft YaHei UI")
+    def __init__(self, task: ConverterTask, parent=None):
+        super().__init__(parent)
+        self.task = task
+        self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setup_ui()
 
-    def _on_window_resize(self, event=None):
-        """窗口大小变化时自适应调整字体/图标/折行"""
-        if not hasattr(self, '_desc_labels') or not self._desc_labels:
-            return
-        if event and event.widget != self.root:
-            return
-
-        s = self._scale()
-        f = self._font
-
-        # 1) 标题
-        if hasattr(self, '_heading_label') and self._heading_label:
-            sz = max(14, min(24, int(18 * s)))
-            self._heading_label.configure(font=(f, sz, "bold"))
-
-        # 2) 副标题
-        if hasattr(self, '_subtitle_label') and self._subtitle_label:
-            sz = max(8, min(13, int(10 * s)))
-            self._subtitle_label.configure(font=(f, sz))
-
-        # 3) 卡片
-        pad = max(10, min(24, int(16 * s)))
-        for i in range(len(CONVERTERS)):
-            if i < len(self._icon_labels):
-                sz = max(14, min(26, int(18 * s)))
-                self._icon_labels[i].configure(font=("Segoe UI", sz))
-            if i < len(self._name_labels):
-                sz = max(9, min(16, int(12 * s)))
-                self._name_labels[i].configure(font=(f, sz, "bold"))
-            if i < len(self._desc_labels):
-                sz = max(7, min(12, int(9 * s)))
-                # 注意：不改 wraplength，保证卡片宽度固定、居中稳定
-                self._desc_labels[i].configure(font=(f, sz))
-
-        for card in self._card_frames:
-            try:
-                card.configure(padding=(pad, pad))
-            except Exception:
-                pass
-
-    def _center_window(self):
-        self.root.update_idletasks()
-        sw = self.root.winfo_screenwidth()
-        sh = self.root.winfo_screenheight()
-        x = (sw - self._win_w) // 2
-        y = (sh - self._win_h) // 2
-        self.root.geometry(f"{self._win_w}x{self._win_h}+{x}+{y}")
-
-    def _rebuild(self):
-        self._win_w = self.root.winfo_width()
-        self._win_h = self.root.winfo_height()
-        for w in self.root.winfo_children():
-            w.destroy()
-        self._build_ui()
-        self._center_window()
-
-    def _build_ui(self):
-        main = ttk.Frame(self.root, padding=24)
-        main.pack(fill=BOTH, expand=YES)
-
-        # ---- 标题栏 ----
-        header = ttk.Frame(main)
-        header.pack(fill=X, pady=(0, 4))
-
-        self._heading_label = ttk.Label(header, text="📦 文档格式互转工具箱",
-                                        font=(self._font, 18, "bold"))
-        self._heading_label.pack(side=LEFT)
-
-        right = ttk.Frame(header)
-        right.pack(side=RIGHT)
-
-        ttk.Label(right, text="v2.2 · Desktop",
-                  font=("Segoe UI", 9),
-                  foreground="#999").pack(side=LEFT, pady=(8, 0), padx=(0, 8))
-
-        ttk.Button(right, text="⚙️ 设置",
-                   command=self._open_settings,
-                   bootstyle="outline-secondary",
-                   padding=(8, 2)).pack(side=RIGHT)
-
-        self._subtitle_label = ttk.Label(main, text="选择一个转换方向，选取文件即可一键转换",
-                                         font=(self._font, 10),
-                                         foreground="#666")
-        self._subtitle_label.pack(anchor=W, pady=(0, 16))
-
-        # ---- 可滚动卡片区（支持水平+垂直滚动）----
-        sf = ttk.Frame(main)
-        sf.pack(fill=BOTH, expand=YES)
-
-        self._canvas = tk.Canvas(sf, highlightthickness=0,
-                                 bg=self.root.style.colors.bg)
-        v_sb = ttk.Scrollbar(sf, orient=VERTICAL, command=self._canvas.yview)
-        h_sb = ttk.Scrollbar(sf, orient=HORIZONTAL, command=self._canvas.xview)
-        cc = ttk.Frame(self._canvas)
-        self._canvas.cc_window = self._canvas.create_window(
-            (0, 0), window=cc, anchor=N, tags="c")
-        self._canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
-
-        # 居中 + 更新滚动区域
-        def _center(event=None):
-            if not self._canvas.winfo_exists():
-                return
-            cc.update_idletasks()
-            cw = self._canvas.winfo_width()
-            ch = self._canvas.winfo_height()
-            cw_req = cc.winfo_reqwidth()
-            ch_req = cc.winfo_reqheight()
-            self._canvas.configure(scrollregion=self._canvas.bbox("all"))
-            # 用实际渲染宽度计算居中，适应不同字体
-            cw_actual = cc.winfo_width()
-            x = max(0, (cw - cw_actual) // 2)
-            y = max(0, (ch - ch_req) // 2) if ch_req < ch else 0
-            self._canvas.coords(self._canvas.cc_window, x, y)
-
-        cc.bind("<Configure>", _center, add="+")
-        self._canvas.bind("<Configure>", _center, add="+")
-        self.root.after(100, _center)
-        # 滚轮：纵向（绑定到 canvas 自身，避免 bind_all 全局污染）
-        def _scroll_y(event, c=self._canvas):
-            if c.winfo_exists():
-                c.yview_scroll(-int(event.delta / 120), "units")
-        self._canvas.bind("<MouseWheel>", _scroll_y)
-        self._canvas.bind("<Enter>", lambda e, c=self._canvas: c.focus_set())
-
-        # Shift + 滚轮：横向
-        def _scroll_x(event, c=self._canvas):
-            if c.winfo_exists():
-                c.xview_scroll(-int(event.delta / 120), "units")
-        self._canvas.bind("<Shift-MouseWheel>", _scroll_x)
-
-        # 清空列表（防止 _rebuild 重复添加）
-        self._desc_labels.clear()
-        self._card_frames.clear()
-        self._icon_labels.clear()
-        self._name_labels.clear()
-
-        for i, task in enumerate(CONVERTERS):
-            card = self._make_card(cc, task)
-            card.grid(row=i, column=0, sticky=EW, pady=5)
-            cc.columnconfigure(0, weight=0)
-
-        self._canvas.grid(row=0, column=0, sticky=NSEW)
-        v_sb.grid(row=0, column=1, sticky=NS)
-        h_sb.grid(row=1, column=0, sticky=EW)
-        sf.grid_rowconfigure(0, weight=1)
-        sf.grid_columnconfigure(0, weight=1)
-
-        # ---- 底部状态 ----
-        self.status_var = tk.StringVar(value="💡 点击上方卡片开始转换")
-        self.status_lbl = ttk.Label(main, textvariable=self.status_var,
-                                    font=(self._font, 9),
-                                    bootstyle="secondary", padding=(14, 10))
-        self.status_lbl.pack(fill=X, pady=(12, 0))
-
-    def _make_card(self, parent, task):
-        card = ttk.Frame(parent, padding=16, bootstyle="light", cursor="hand2")
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(12)
 
         # 标题行
-        row = ttk.Frame(card)
-        row.pack(fill=X)
+        title_layout = QHBoxLayout()
+        title_layout.setSpacing(12)
 
-        icon_lbl = ttk.Label(row, text=task.icon, font=("Segoe UI", 18))
-        icon_lbl.pack(side=LEFT)
-        self._icon_labels.append(icon_lbl)
+        icon_label = QLabel(self.task.icon)
+        icon_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
+        icon_label.setStyleSheet(f"color: {'#1a56db' if self.parent() and hasattr(self.parent(), 'theme_colors') else '#1a56db'};")
+        title_layout.addWidget(icon_label)
 
-        name_lbl = ttk.Label(row, text=task.name,
-                             font=(self._font, 12, "bold"),
-                             foreground="#1a1a2e")
-        name_lbl.pack(side=LEFT, padx=(8, 0))
-        self._name_labels.append(name_lbl)
+        name_label = QLabel(self.task.name)
+        name_label.setFont(QFont("Microsoft YaHei UI", 13, QFont.Weight.Bold))
+        name_label.setObjectName("converter_name")
+        title_layout.addWidget(name_label)
+        title_layout.addStretch()
+        layout.addLayout(title_layout)
 
-        ttk.Label(row, text="→", font=("Segoe UI", 12),
-                  foreground="#1a56db").pack(side=RIGHT)
+        # 描述
+        desc_label = QLabel(self.task.desc)
+        desc_label.setFont(QFont("Microsoft YaHei UI", 9))
+        desc_label.setObjectName("converter_desc")
+        desc_label.setWordWrap(True)
+        desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        layout.addWidget(desc_label)
 
-        # 描述行
-        desc_lbl = ttk.Label(card, text=task.desc,
-                             font=(self._font, 9),
-                             foreground="#6b7280",
-                             padding=(0, 6, 0, 0),
-                             wraplength=480,
-                             anchor=W)
-        desc_lbl.pack(fill=X)
-        self._desc_labels.append(desc_lbl)
-        self._card_frames.append(card)
+    def enterEvent(self, event):
+        self.setStyleSheet("""
+            QFrame {
+                background-color: #f0f4ff;
+                border-radius: 12px;
+                border: 2px solid #1a56db;
+            }
+        """)
+        super().enterEvent(event)
 
-        def bind_recursive(w):
-            w.bind("<Button-1>", lambda e, t=task: self._convert(t))
-            for c in w.winfo_children():
-                bind_recursive(c)
-        bind_recursive(card)
-        return card
+    def leaveEvent(self, event):
+        self.setStyleSheet("")
+        super().leaveEvent(event)
 
-    # ==================== 设置弹窗 ====================
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self.task)
+        super().mousePressEvent(event)
 
-    def _open_settings(self):
-        win = tk.Toplevel(self.root)
-        win.title("⚙️ 设置")
-        win.resizable(True, True)
-        win.transient(self.root)
-        win.grab_set()
 
-        # --- 可滚动的设置内容（水平+垂直） ---
-        canvas = tk.Canvas(win, highlightthickness=0,
-                           bg=self.root.style.colors.bg)
-        v_sb = ttk.Scrollbar(win, orient=VERTICAL, command=canvas.yview)
-        h_sb = ttk.Scrollbar(win, orient=HORIZONTAL, command=canvas.xview)
-        scroll_frame = ttk.Frame(canvas)
+# ==================== 设置对话框 ====================
 
-        scroll_frame.bind("<Configure>",
-                          lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=scroll_frame, anchor=NW, tags="sf")
+class SettingsDialog(QDialog):
+    def __init__(self, config: dict, parent=None):
+        super().__init__(parent)
+        self.config = config
+        self.setWindowTitle("⚙️ 设置")
+        self.setFixedSize(500, 320)
+        self.setup_ui()
 
-        canvas.configure(yscrollcommand=v_sb.set, xscrollcommand=h_sb.set)
-        # 滚轮绑定（检查 canvas 存活避免关闭后报错）
-        def _scroll_y(event, c=canvas):
-            if c.winfo_exists():
-                c.yview_scroll(-int(event.delta / 120), "units")
-        def _scroll_x(event, c=canvas):
-            if c.winfo_exists():
-                c.xview_scroll(-int(event.delta / 120), "units")
-        canvas.bind("<MouseWheel>", _scroll_y)
-        canvas.bind("<Shift-MouseWheel>", _scroll_x)
-        canvas.bind("<Enter>", lambda e, c=canvas: c.focus_set())
+    def setup_ui(self):
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
 
-        canvas.grid(row=0, column=0, sticky=NSEW)
-        v_sb.grid(row=0, column=1, sticky=NS)
-        h_sb.grid(row=1, column=0, sticky=EW)
-        win.grid_rowconfigure(0, weight=1)
-        win.grid_columnconfigure(0, weight=1)
+        # 主题选择
+        theme_label = QLabel("🎨 主题")
+        theme_label.setFont(QFont("Microsoft YaHei UI", 11, QFont.Weight.Bold))
+        layout.addWidget(theme_label)
 
-        f = ttk.Frame(scroll_frame, padding=24)
-        f.pack(fill=BOTH, expand=YES)
+        theme_layout = QHBoxLayout()
+        self.light_radio = QPushButton("☀️ 亮色")
+        self.light_radio.setCheckable(True)
+        self.dark_radio = QPushButton("🌙 暗色")
+        self.dark_radio.setCheckable(True)
+        if self.config.get("theme") == "light":
+            self.light_radio.setChecked(True)
+        else:
+            self.dark_radio.setChecked(True)
+        theme_layout.addWidget(self.light_radio)
+        theme_layout.addWidget(self.dark_radio)
+        layout.addLayout(theme_layout)
 
-        # 所有设置项使用统一左对齐
-        def section_title(parent, text):
-            ttk.Label(parent, text=text,
-                      font=("Microsoft YaHei UI", 12, "bold")
-                      ).pack(anchor=W, pady=(0, 8))
+        layout.addSpacing(10)
 
-        # ---- 主题选择（3 个选项水平排列）----
-        section_title(f, "🎨 主题")
-        theme_var = tk.StringVar(value=self.config.get("theme", "flatly"))
-        tf = ttk.Frame(f)
-        tf.pack(fill=X, pady=(0, 6))
-        for tid, tl in THEME_OPTIONS:
-            ttk.Radiobutton(tf, text=tl, variable=theme_var,
-                            value=tid, bootstyle="info"
-                            ).pack(side=LEFT, padx=(0, 20))
+        # 按钮
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
 
-        ttk.Separator(f, bootstyle="secondary").pack(fill=X, pady=12)
+    def get_theme(self) -> str:
+        if self.light_radio.isChecked():
+            return "light"
+        return "dark"
 
-        # ---- 字体选择（2 列网格，整齐对齐）----
-        section_title(f, "🔤 界面字体")
-        font_var = tk.StringVar(value=self._font)
-        ff = ttk.Frame(f)
-        ff.pack(fill=X)
-        for i, (fn, fl) in enumerate(FONT_OPTIONS):
-            ttk.Radiobutton(ff, text=fl, variable=font_var,
-                            value=fn, bootstyle="info"
-                            ).grid(row=i // 2, column=i % 2, sticky=W, padx=(0, 20), pady=2)
-        ff.columnconfigure(0, weight=1)
-        ff.columnconfigure(1, weight=1)
 
-        ttk.Separator(f, bootstyle="secondary").pack(fill=X, pady=12)
+# ==================== 主窗口 ====================
 
-        # ---- 窗口尺寸（纵向紧凑排列）----
-        section_title(f, "📐 窗口尺寸")
-        size_var = tk.StringVar(value=self.config.get("window_size", "medium"))
-        ssf = ttk.Frame(f)
-        ssf.pack(fill=X)
-        for sid, sl in [("small", "📱 小 (600×480)"),
-                        ("medium", "💻 中 (780×620)"),
-                        ("large", "🖥️ 大 (960×760)")]:
-            ttk.Radiobutton(ssf, text=sl, variable=size_var,
-                            value=sid, bootstyle="info"
-                            ).pack(anchor=W, pady=2)
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.config = load_config()
+        self.current_theme = self.config.get("theme", "light")
+        self.theme_colors = StyleHelper.get_theme_colors(self.current_theme)
+        self.setWindowTitle("📦 文档格式互转工具箱")
+        self.setMinimumSize(700, 550)
+        self.setup_ui()
+        StyleHelper.apply_global_stylesheet(QApplication.instance(), self.current_theme)
 
-        ttk.Separator(f, bootstyle="secondary").pack(fill=X, pady=12)
+    def setup_ui(self):
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(24, 24, 24, 24)
+        main_layout.setSpacing(16)
 
-        # ---- 底部按钮（居中）----
-        bf = ttk.Frame(f)
-        bf.pack(fill=X, pady=(4, 0))
+        # 标题栏
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(12)
 
-        def apply():
-            nt = theme_var.get()
-            ns = size_var.get()
-            nf = font_var.get()
-            changed_theme = nt != self.config.get("theme")
-            changed_size = ns != self.config.get("window_size")
-            changed_font = nf != self.config.get("font_family")
+        title_label = QLabel("📦 文档格式互转工具箱")
+        title_label.setFont(QFont("Microsoft YaHei UI", 20, QFont.Weight.Bold))
+        title_label.setObjectName("converter_name")
+        header_layout.addWidget(title_label)
 
-            self.config["theme"] = nt
-            self.config["window_size"] = ns
-            self.config["font_family"] = nf
-            if ns in SIZE_PRESETS:
-                self._win_w, self._win_h = SIZE_PRESETS[ns]
-            save_config(self.config)
-            _cleanup_settings()
+        version_label = QLabel("v3.0 · Qt Edition")
+        version_label.setFont(QFont("Segoe UI", 9))
+        version_label.setObjectName("converter_desc")
+        header_layout.addStretch()
+        header_layout.addWidget(version_label)
 
-            rebuild = changed_theme or changed_font
-            if changed_theme:
-                self.root.style.theme_use(nt)
-            if rebuild:
-                self._rebuild()
-            elif changed_size:
-                self.root.geometry(f"{self._win_w}x{self._win_h}")
-                self._center_window()
-            else:
-                self._status("⚙️ 设置已应用", "info")
-            if rebuild or changed_size:
-                self.root.after(100, lambda: self._status("⚙️ 设置已应用", "info"))
+        settings_btn = QPushButton("⚙️ 设置")
+        settings_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        settings_btn.clicked.connect(self.open_settings)
+        header_layout.addWidget(settings_btn)
 
-        def _cleanup_settings():
-            canvas.unbind_all("<MouseWheel>")
-            canvas.unbind_all("<Shift-MouseWheel>")
-            win.destroy()
+        main_layout.addLayout(header_layout)
 
-        win.protocol("WM_DELETE_WINDOW", _cleanup_settings)
+        # 副标题
+        subtitle = QLabel("选择一个转换方向，选取文件即可一键转换")
+        subtitle.setFont(QFont("Microsoft YaHei UI", 10))
+        subtitle.setObjectName("converter_desc")
+        main_layout.addWidget(subtitle)
 
-        ttk.Button(bf, text="✅ 应用", command=apply,
-                   bootstyle="primary", padding=(24, 8)).pack(side=LEFT, padx=(0, 12))
-        ttk.Button(bf, text="取消", command=_cleanup_settings,
-                   bootstyle="secondary", padding=(16, 8)).pack(side=LEFT)
+        # 可滚动卡片区
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        # 设置弹窗大小 & 居中
-        win.update_idletasks()
-        ww, wh = 580, 520
-        wx = self.root.winfo_x() + (self._win_w - ww) // 2
-        wy = self.root.winfo_y() + (self._win_h - wh) // 2
-        win.geometry(f"{ww}x{wh}+{wx}+{wy}")
-        win.minsize(480, 380)
+        content_widget = QWidget()
+        scroll.setWidget(content_widget)
 
-    # ==================== 转换逻辑 ====================
+        layout = QVBoxLayout(content_widget)
+        layout.setSpacing(16)
 
-    def _convert(self, task):
-        f = filedialog.askopenfilename(
-            title=f"选择源文件 — {task.name}",
-            initialdir=os.path.expanduser("~\\Desktop"),
-            filetypes=[(task.file_filter(), f"*{task.source_ext}"),
-                       ("所有文件", "*.*")]
+        # 卡片网格（垂直排列）
+        for task in CONVERTERS:
+            card = ConverterCard(task)
+            card.clicked.connect(self.handle_conversion)
+            layout.addWidget(card)
+
+        layout.addStretch()
+        main_layout.addWidget(scroll)
+
+        # 底部状态
+        self.status_label = QLabel("💡 点击上方卡片开始转换")
+        self.status_label.setFont(QFont("Microsoft YaHei UI", 9))
+        self.status_label.setObjectName("converter_desc")
+        self.status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(self.status_label)
+
+    def open_settings(self):
+        dialog = SettingsDialog(self.config, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            new_theme = dialog.get_theme()
+            if new_theme != self.current_theme:
+                self.current_theme = new_theme
+                self.theme_colors = StyleHelper.get_theme_colors(self.current_theme)
+                StyleHelper.apply_global_stylesheet(QApplication.instance(), self.current_theme)
+                self.config["theme"] = self.current_theme
+                save_config(self.config)
+                self.status_label.setText("⚙️ 主题已切换")
+
+    def handle_conversion(self, task: ConverterTask):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"选择源文件 — {task.name}",
+            os.path.expanduser("~\\Desktop"),
+            f"{task.file_filter()};;所有文件 (*.*)"
         )
-        if not f:
+        if not file_path:
             return
-        default = os.path.splitext(f)[0] + task.target_ext
-        out = filedialog.asksaveasfilename(
-            title=f"保存为 {task.target_ext}",
-            initialdir=os.path.dirname(default),
-            initialfile=os.path.basename(default),
-            filetypes=[(f"{task.target_ext.upper()} 文件", f"*{task.target_ext}"),
-                       ("所有文件", "*.*")]
+
+        default_path = os.path.splitext(file_path)[0] + task.target_ext
+        out_path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"保存为 {task.target_ext}",
+            default_path,
+            f"{task.target_ext.upper()} 文件 (*{task.target_ext});;所有文件 (*.*)"
         )
-        if not out:
+        if not out_path:
             return
-        self._status(f"⏳ 正在转换: {os.path.basename(f)} ...", "info")
+
+        self.status_label.setText(f"⏳ 正在转换: {os.path.basename(file_path)} ...")
+        self.status_label.setStyleSheet("color: #1a56db;")
 
         def worker():
             try:
-                task.convert(f, out)
-                self.root.after(0, lambda: self._done(out))
+                task.convert(file_path, out_path)
+                self.status_label.setText("✅ 转换成功！")
+                self.status_label.setStyleSheet("color: #10b981;")
+                QMessageBox.information(
+                    self,
+                    "转换成功",
+                    f"✅ 文件已保存到:\n{out_path}\n\n是否打开所在文件夹？"
+                )
+                os.startfile(os.path.dirname(out_path))
             except Exception as e:
-                self.root.after(0, lambda: self._fail(str(e)))
+                self.status_label.setText("❌ 转换失败")
+                self.status_label.setStyleSheet("color: #ef4444;")
+                QMessageBox.critical(self, "转换失败", f"❌ 错误:\n\n{str(e)}")
+
         threading.Thread(target=worker, daemon=True).start()
 
-    def _done(self, path):
-        self._status("✅ 转换成功！", "success")
-        if messagebox.askyesno("转换成功",
-                               f"✅ 文件已保存到:\n{path}\n\n是否打开所在文件夹？"):
-            os.startfile(os.path.dirname(path))
 
-    def _fail(self, err):
-        self._status("❌ 转换失败", "danger")
-        messagebox.showerror("转换失败", f"❌ 错误:\n\n{err}")
-
-    def _status(self, text, style="secondary"):
-        self.status_var.set(text)
-        clr = {"info": "#1a56db", "success": "#065f46",
-               "danger": "#991b1b", "secondary": "#6b7280"}
-        self.status_lbl.configure(foreground=clr.get(style, "#6b7280"))
-
-    def run(self):
-        self.root.mainloop()
-
+# ==================== 入口 ====================
 
 def main():
-    ConverterApp().run()
+    app = QApplication(sys.argv)
+    app.setFont(QFont("Microsoft YaHei UI", 9))
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
