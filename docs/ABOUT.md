@@ -1,68 +1,45 @@
 # About
 
-## 📦 格式转换工具箱 (Format Converter Toolkit) v4.0
+## 📦 Format Converter Toolkit
 
-一个跨平台的文档格式转换桌面应用，使用 Python + PySide6 (Qt6) 构建。
+一个基于 Qt (PySide6) 的文档格式转换桌面应用，支持 Markdown、Word (.docx)、PDF 三种格式之间的相互转换，特别优化中文支持与 LaTeX 数学公式。
 
-### 🎯 项目目标
+### 转换方向
 
-让用户能够轻松地在 **Markdown**、**Word (.docx)** 和 **PDF** 三种常用文档格式之间进行转换，特别针对中文用户优化，支持 LaTeX 数学公式渲染。
+| 方向 | 文件 | 说明 |
+|------|------|------|
+| Markdown → Word | `md_to_docx.py` | 完整 Markdown 支持，LaTeX 公式转 Unicode，可点击超链接 |
+| Word → Markdown | `docx_to_md.py` | 保留标题层级、行内格式、列表、表格、代码块 |
+| Markdown → PDF | `md_to_pdf.py` | A4 排版，中英文混排，LaTeX 行内/块级公式 |
+| PDF → Markdown | `pdf_to_md.py` | 智能识别标题（基于字号）、粗体/斜体、表格 |
 
-### ✨ v4.0 核心功能
+### GUI 功能
 
-1. **Markdown → Word** (`md_to_docx.py`)
-   - 完整支持 Markdown 语法（标题、列表、表格、代码块、引用块等）
-   - LaTeX 行内/块级公式自动转换为 Unicode 符号
-   - 中文字体统一优化，可点击超链接
-   - 代码块灰色背景 + 语言标签
-
-2. **Word → Markdown** (`docx_to_md.py`)
-   - 智能识别标题层级（Heading 1~6）
-   - 保留行内格式（粗体、斜体、代码）
-   - 有序/无序列表转换
-   - Word 表格 → Markdown 表格
-   - 智能代码块检测
-
-3. **Markdown → PDF** (`md_to_pdf.py`)
-   - A4 纸张自动分页
-   - 中英文混排优化
-   - 智能折行
-   - 代码块、表格、引用块美化
-
-4. **PDF → Markdown** (`pdf_to_md.py`)
-   - 逐页转换，页间分隔
-   - 基于字号智能识别标题
-   - 粗体/斜体格式保留
-   - 简易表格检测与转换
-
-### 🖥️ GUI 特性
-- WorkBuddy 风格扁平化界面设计
-- 亮色/暗色双主题统一，一键切换
-- 文件拖拽转换
-- 批量模式 + 进度条
+- 卡片式桌面应用，亮色/暗色双主题
+- 文件拖拽转换，批量模式 + 进度条
 - 转换历史记录
 
-### 🛠️ 技术栈
+### 技术栈
 
-- **GUI 框架**: PySide6 (Qt6)
-- **Word 处理**: python-docx
-- **PDF 处理**: PyMuPDF (fitz)
-- **LaTeX 转换**: 内置 `simplify_tex()` 引擎
+- **GUI**: PySide6 (Qt6)
+- **Word**: python-docx
+- **PDF**: PyMuPDF (fitz)
+- **LaTeX**: 内置 simplify_tex() 引擎
 
-### 📦 依赖安装
+### 依赖
 
 ```bash
 pip install PySide6 python-docx PyMuPDF
 ```
 
-### 📜 许可
+### 许可
 
 MIT License
 
-### 👨‍💻 作者
+### 作者
 
 [2077fake](https://github.com/2077fake)
 
 ---
 
-*最后更新: 2026-06-05*
+*最后更新: 2026-06-06*
