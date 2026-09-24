@@ -14,11 +14,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QFrame, QScrollArea, QMessageBox,
-    QFileDialog, QDialog, QFormLayout, QDialogButtonBox,
-    QGridLayout, QLineEdit, QComboBox
+    QFileDialog, QDialog, QDialogButtonBox
 )
-from PySide6.QtGui import QPainter, QPalette, QColor, QFont, QPaintEvent
-from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QPoint, QEasingCurve, QSize
+from PySide6.QtGui import QColor, QFont
+from PySide6.QtCore import Qt, Signal
 from version import __version__
 
 # ==================== 配置管理 ====================
@@ -132,6 +131,9 @@ class StyleHelper:
             QMainWindow {{
                 background-color: {colors['bg']};
             }}
+            QWidget {{
+                color: {colors['text']};
+            }}
             QLabel {{
                 color: {colors['text']};
                 font-family: 'Microsoft YaHei UI';
@@ -153,6 +155,22 @@ class StyleHelper:
             }}
             QDialog {{
                 background-color: {colors['bg']};
+            }}
+            QScrollArea {{
+                background-color: {colors['bg']};
+                border: none;
+            }}
+            QFrame#converter_card {{
+                background-color: {colors['card_bg']};
+                border: 1px solid {colors['border']};
+                border-radius: 12px;
+            }}
+            QFrame#converter_card:hover {{
+                background-color: {colors['hover']};
+                border: 2px solid {colors['accent']};
+            }}
+            QLabel#converter_icon {{
+                color: {colors['accent']};
             }}
             QScrollBar:vertical {{
                 background-color: {colors['bg']};
@@ -197,6 +215,7 @@ class ConverterCard(QFrame):
     def __init__(self, task: ConverterTask, parent=None):
         super().__init__(parent)
         self.task = task
+        self.setObjectName("converter_card")
         self.setFrameStyle(QFrame.Shape.StyledPanel | QFrame.Shadow.Raised)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setup_ui()
@@ -212,7 +231,7 @@ class ConverterCard(QFrame):
 
         icon_label = QLabel(self.task.icon)
         icon_label.setFont(QFont("Segoe UI", 16, QFont.Weight.Bold))
-        icon_label.setStyleSheet(f"color: {'#1a56db' if self.parent() and hasattr(self.parent(), 'theme_colors') else '#1a56db'};")
+        icon_label.setObjectName("converter_icon")
         title_layout.addWidget(icon_label)
 
         name_label = QLabel(self.task.name)
@@ -229,20 +248,6 @@ class ConverterCard(QFrame):
         desc_label.setWordWrap(True)
         desc_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         layout.addWidget(desc_label)
-
-    def enterEvent(self, event):
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #f0f4ff;
-                border-radius: 12px;
-                border: 2px solid #1a56db;
-            }
-        """)
-        super().enterEvent(event)
-
-    def leaveEvent(self, event):
-        self.setStyleSheet("")
-        super().leaveEvent(event)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -333,12 +338,15 @@ def _run_conversion(task: ConverterTask, file_path: str, out_path: str) -> _Conv
 
 
 class MainWindow(QMainWindow):
+    conversion_done = Signal(object)
+
     def __init__(self):
         super().__init__()
         self.config = load_config()
         self.current_theme = self.config.get("theme", "light")
         self.theme_colors = StyleHelper.get_theme_colors(self.current_theme)
         self._converting = False
+        self.conversion_done.connect(self._on_conversion_done)
         self.setWindowTitle("📦 文档格式互转工具箱")
         self.setMinimumSize(700, 550)
         self.setup_ui()
@@ -448,16 +456,12 @@ class MainWindow(QMainWindow):
 
         self._converting = True
         self.status_label.setText(f"⏳ 正在转换: {os.path.basename(file_path)} ...")
-        self.status_label.setStyleSheet("color: #1a56db;")
+        self.status_label.setStyleSheet(f"color: {self.theme_colors['accent']};")
 
         def worker():
             result = _run_conversion(task, file_path, out_path)
-            # 使用 invokeMethod 确保在主线程中回调
-            QMetaObject.invokeMethod(
-                self, "_on_conversion_done",
-                Qt.ConnectionType.QueuedConnection,
-                Q_ARG(object, result)
-            )
+            # Signal 跨线程投递到主线程，避免直接操作 Qt 控件。
+            self.conversion_done.emit(result)
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -467,14 +471,14 @@ class MainWindow(QMainWindow):
 
         if result.success:
             self.status_label.setText("✅ 转换成功！")
-            self.status_label.setStyleSheet("color: #10b981;")
+            self.status_label.setStyleSheet(f"color: {self.theme_colors['success']};")
             QMessageBox.information(
                 self, "转换成功",
                 f"✅ 文件已保存到:\n{result.output_path}"
             )
         else:
             self.status_label.setText("❌ 转换失败")
-            self.status_label.setStyleSheet("color: #ef4444;")
+            self.status_label.setStyleSheet(f"color: {self.theme_colors['error']};")
             detail = f"转换器: {result.converter}\n错误: {result.error}"
             QMessageBox.critical(self, "转换失败", detail)
 
