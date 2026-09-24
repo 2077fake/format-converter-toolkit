@@ -2,7 +2,7 @@
 
 基于 Qt (PySide6) 的文档格式转换桌面应用，支持 Markdown、Word、PDF 三种格式之间的转换。
 
-当前版本：**4.1.0**
+当前版本：**4.1.1**
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![PySide6](https://img.shields.io/badge/PySide6-6.5+-green.svg)](https://doc.qt.io/qtforpython-6/)
