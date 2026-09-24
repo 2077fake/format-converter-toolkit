@@ -2,6 +2,8 @@
 
 基于 Qt (PySide6) 的文档格式转换桌面应用，支持 Markdown、Word、PDF 三种格式之间的转换。
 
+当前版本：**4.1.0**
+
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![PySide6](https://img.shields.io/badge/PySide6-6.5+-green.svg)](https://doc.qt.io/qtforpython-6/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -10,6 +12,14 @@
 
 ```bash
 pip install PySide6 python-docx PyMuPDF
+```
+
+## 开发
+
+```bash
+python -m pip install -r requirements.txt
+python -m pytest
+python main.py
 ```
 
 ## 桌面应用（推荐）
@@ -66,6 +76,7 @@ python pdf_to_md.py ./input_dir/ --batch
 ```
 format-converter-toolkit/
 ├── main.py              # GUI 桌面应用主入口
+├── version.py           # 集中维护版本号
 ├── md_to_docx.py        # Markdown → Word
 ├── docx_to_md.py        # Word → Markdown
 ├── md_to_pdf.py         # Markdown → PDF
@@ -75,6 +86,10 @@ format-converter-toolkit/
 ├── requirements.txt     # Python 依赖
 └── tests/               # 单元测试
 ```
+
+## 版本记录
+
+详见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 

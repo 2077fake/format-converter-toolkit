@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 )
 from PySide6.QtGui import QPainter, QPalette, QColor, QFont, QPaintEvent
 from PySide6.QtCore import Qt, Signal, QPropertyAnimation, QPoint, QEasingCurve, QSize
+from version import __version__
 
 # ==================== 配置管理 ====================
 
@@ -362,7 +363,7 @@ class MainWindow(QMainWindow):
         title_label.setObjectName("converter_name")
         header_layout.addWidget(title_label)
 
-        version_label = QLabel("v3.0 · Qt Edition")
+        version_label = QLabel(f"v{__version__} · Qt Edition")
         version_label.setFont(QFont("Segoe UI", 9))
         version_label.setObjectName("converter_desc")
         header_layout.addStretch()
