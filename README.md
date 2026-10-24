@@ -71,6 +71,10 @@ python pdf_to_md.py ./input_dir/ --batch
 | `$\alpha + \beta = \gamma$` | α + β = γ |
 | `$\int_0^\infty e^{-x^2} dx$` | ∫₀^∞ e⁻ˣ² dx |
 
+## 架构
+
+![格式转换工具箱架构](docs/architecture.png)
+
 ## 项目结构
 
 ```
