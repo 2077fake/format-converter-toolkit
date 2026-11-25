@@ -1,6 +1,6 @@
 """
 LaTeX 公式简化工具 — 将 LaTeX 数学公式转为可读的 Unicode 纯文本
-被 md_to_docx.py 和 md_to_pdf.py 共享使用
+被 md_to_docx 与 md_to_pdf 共享使用
 
 注意：映射表中更长的模式必须排在更短的模式之前，
      以避免部分匹配（如 \\longrightarrow 在 \\rightarrow 之前）。
@@ -26,7 +26,8 @@ _LATEX_TO_UNICODE = [
     (r'\\approx', '≈'), (r'\\equiv', '≡'), (r'\\neq', '≠'),
     (r'\\leq', '≤'), (r'\\geq', '≥'), (r'\\ll', '≪'), (r'\\gg', '≫'),
     # 运算符
-    (r'\\pm', '±'), (r'\\mp', '∓'), (r'\\times', '×'), (r'\\cdot', '·'),
+    (r'\\pm', '±'), (r'\\mp', '∓'), (r'\\times', '×'),
+    (r'\\cdots', '⋯'), (r'\\cdot', '·'),
     (r'\\div', '÷'), (r'\\circ', '°'),
     (r'\\parallel', '∥'), (r'\\perp', '⊥'),
     # 箭头 — 长箭头必须在短箭头之前，避免 \rightarrow 部分匹配 \longrightarrow
@@ -44,7 +45,7 @@ _LATEX_TO_UNICODE = [
     # 其他符号
     (r'\\nabla', '∇'), (r'\\propto', '∝'),
     (r'\\sim', '∼'), (r'\\cong', '≅'),
-    (r'\\cdots', '⋯'), (r'\\vdots', '⋮'), (r'\\ddots', '⋱'),
+    (r'\\vdots', '⋮'), (r'\\ddots', '⋱'),
     (r'\\therefore', '∴'), (r'\\because', '∵'),
     (r'\\angle', '∠'), (r'\\triangle', '△'), (r'\\square', '□'),
 ]

@@ -1,0 +1,56 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+*{box-sizing:border-box;margin:0}
+body{width:1600px;height:900px;background:#f6f4ef;font-family:"Microsoft YaHei","Segoe UI",sans-serif;color:#1c1c1c;position:relative;overflow:hidden}
+.t{position:absolute;left:70px;top:46px;font-size:54px;font-weight:800;letter-spacing:-1px}
+.s{position:absolute;left:72px;top:120px;font-size:24px;color:#555}
+.ft{position:absolute;right:70px;top:60px;text-align:right;font-family:Consolas,monospace;font-size:20px;line-height:1.7}
+.col{position:absolute;top:200px;height:470px;border:2px solid #1c1c1c;border-radius:6px;background:#fff;padding:20px 24px}
+.col h3{font-size:15px;letter-spacing:2px;color:#888;font-weight:600;margin-bottom:6px;font-family:Consolas,monospace}
+.col h2{font-size:28px;margin-bottom:16px}
+.box{border:1.5px solid #1c1c1c;border-radius:4px;padding:10px 14px;margin-bottom:11px;background:#fbfaf7}
+.box b{font-size:19px;display:block;font-family:Consolas,"Microsoft YaHei",monospace}
+.box span{font-size:15px;color:#666}
+.acc{background:#1c1c1c;color:#fff}.acc span{color:#bbb}
+.org{border-color:#d9541e;background:#fff3ec}
+.row{display:flex;gap:10px;margin-bottom:11px}
+.tag{font-family:Consolas,monospace;font-weight:800;font-size:15px;background:#1c1c1c;color:#fff;border-radius:3px;padding:6px 10px;flex:1;text-align:center}
+.lab{position:absolute;font-size:15px;color:#d9541e;font-family:Consolas,monospace;font-weight:600}
+.bar{position:absolute;left:70px;top:735px;width:1460px;height:110px;border:2px dashed #1c1c1c;border-radius:6px;padding:18px 26px;font-size:20px;background:#fff;display:flex;align-items:center;gap:36px}
+.bar small{font-size:15px;color:#777;display:block;margin-top:4px}
+.pill{border:1.5px solid #1c1c1c;border-radius:4px;padding:8px 16px;font-family:Consolas,"Microsoft YaHei",monospace;font-size:18px;background:#fbfaf7}
+</style></head><body>
+<div class="t">格式转换工具箱</div>
+<div class="s">Markdown · Word · PDF 互转 · 桌面应用与命令行共用同一内核</div>
+<div class="ft">github.com/2077fake/format-converter-toolkit<br>PySide6 · python-docx · PyMuPDF</div>
+
+<div class="col" style="left:70px;width:400px"><h3>ENTRY</h3><h2>入口</h2>
+<div class="box acc"><b>main.py</b><span>python main.py / python -m format_converter</span></div>
+<div class="box"><b>ui/</b><span>PySide6：卡片 · 拖入文件 · 状态条 · 记录面板</span></div>
+<div class="box"><b>ui/theme.py</b><span>Paper 浅色 / Ink 深色</span></div>
+<div class="box org"><b>cli.py</b><span>convert FILE --to docx|md|pdf,支持批量目录</span></div>
+</div>
+
+<div class="col" style="left:620px;width:430px"><h3>CORE · 无 Qt 依赖</h3><h2>core/</h2>
+<div class="box acc"><b>registry.py</b><span>转换方向注册表 · run_conversion</span></div>
+<div class="box"><b>markdown.py</b><span>共享 Markdown 解析 → 元素列表</span></div>
+<div class="box"><b>latex.py</b><span>LaTeX → Unicode 简化</span></div>
+<div class="box"><b>errors.py</b><span>ConversionError · DependencyMissingError</span></div>
+</div>
+
+<div class="col" style="left:1200px;width:330px"><h3>CONVERTERS · 懒加载</h3><h2>converters/</h2>
+<div class="row"><div class="tag">MD → DOCX</div></div>
+<div class="row"><div class="tag">DOCX → MD</div></div>
+<div class="row"><div class="tag">MD → PDF</div></div>
+<div class="row"><div class="tag">PDF → MD</div></div>
+<div class="box org" style="margin-top:6px"><span>出错抛异常,不再 print + sys.exit</span></div>
+</div>
+
+<div class="lab" style="left:474px;top:380px">run_conversion</div>
+<div class="lab" style="left:1056px;top:380px">task.load()</div>
+<svg style="position:absolute;left:0;top:0" width="1600" height="900">
+<defs><marker id="a" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#1c1c1c"/></marker></defs>
+<g stroke="#1c1c1c" stroke-width="2.5" fill="none" marker-end="url(#a)">
+<line x1="472" y1="430" x2="616" y2="430"/><line x1="1052" y1="430" x2="1196" y2="430"/>
+<line x1="835" y1="672" x2="835" y2="733"/><line x1="1365" y1="672" x2="1365" y2="733"/></g></svg>
+<div class="bar"><div><b>输出</b><small>转换结果写入用户指定路径</small></div><div class="pill">.docx</div><div class="pill">.md</div><div class="pill">.pdf</div><div style="margin-left:auto;font-family:Consolas,monospace;font-size:16px;color:#777">配置 → %APPDATA%\format-converter-toolkit\config.json</div></div>
+</body></html>

@@ -1,6 +1,5 @@
 """
 Markdown 转 PDF 工具（支持 LaTeX 公式）
-用法: python md_to_pdf.py input.md [output.pdf]
 
 功能：
 - 标题层级 # ~ ######
@@ -16,11 +15,16 @@ Markdown 转 PDF 工具（支持 LaTeX 公式）
 - 自动分页
 """
 
+import logging
+
+from ..errors import DependencyMissingError
+
+log = logging.getLogger(__name__)
+
 import re
-import sys
 import os
-from latex_utils import simplify_tex
-from shared_parse import _merge_display_math, parse_markdown
+from ..core.latex import simplify_tex
+from ..core.markdown import _merge_display_math, parse_markdown
 
 
 def _check_fitz():
@@ -28,9 +32,8 @@ def _check_fitz():
     try:
         import fitz
         return fitz
-    except ImportError:
-        print("❌ 需要安装 PyMuPDF: pip install PyMuPDF")
-        sys.exit(1)
+    except ImportError as exc:
+        raise DependencyMissingError("PyMuPDF", "fitz") from exc
 
 
 # ==================== 全局样式配置 ====================
@@ -653,8 +656,7 @@ def convert_md_to_pdf(input_path: str, output_path: str = None):
     fitz = _check_fitz()
 
     if not os.path.exists(input_path):
-        print(f"❌ 文件不存在: {input_path}")
-        sys.exit(1)
+        raise FileNotFoundError(input_path)
 
     if output_path is None:
         output_path = os.path.splitext(input_path)[0] + '.pdf'
@@ -663,10 +665,10 @@ def convert_md_to_pdf(input_path: str, output_path: str = None):
         content = f.read()
 
     lines = content.splitlines()
-    print(f"📖 已读取: {input_path} ({len(lines)} 行)")
+    log.info(f"📖 已读取: {input_path} ({len(lines)} 行)")
 
     elements = parse_markdown(lines)
-    print(f"🔍 解析出 {len(elements)} 个元素")
+    log.info(f"🔍 解析出 {len(elements)} 个元素")
 
     renderer = PDFRenderer(fitz, output_path)
 
@@ -709,44 +711,8 @@ def convert_md_to_pdf(input_path: str, output_path: str = None):
     renderer.doc.save(output_path)
     renderer.doc.close()
 
-    print(f"📊 共 {renderer.page_num} 页")
-    print(f"✅ 已生成: {output_path}")
+    log.info(f"📊 共 {renderer.page_num} 页")
+    log.info(f"✅ 已生成: {output_path}")
     return output_path
 
 
-# ==================== 入口 ====================
-
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("📝 Markdown → PDF 转换工具 (支持 LaTeX 公式)")
-        print(f"用法: python {os.path.basename(__file__)} <input.md> [output.pdf]")
-        print(f"      python {os.path.basename(__file__)} <input_dir> --batch")
-        print()
-        print("示例:")
-        print(f"  python {os.path.basename(__file__)} readme.md")
-        print(f"  python {os.path.basename(__file__)} readme.md 输出.pdf")
-        print(f"  python {os.path.basename(__file__)} ./markdown_files/ --batch")
-        sys.exit(0)
-
-    input_path = sys.argv[1]
-    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
-        import glob
-        input_dir = input_path
-        if not os.path.isdir(input_dir):
-            print(f"❌ 目录不存在: {input_dir}")
-            sys.exit(1)
-        md_files = glob.glob(os.path.join(input_dir, '*.md'))
-        if not md_files:
-            print(f"❌ 目录中未找到 .md 文件: {input_dir}")
-            sys.exit(1)
-        print(f"📦 批量转换 {len(md_files)} 个文件...")
-        success = 0
-        for f in md_files:
-            try:
-                convert_md_to_pdf(f)
-                success += 1
-            except Exception as e:
-                print(f"❌ 转换失败 {f}: {e}")
-        print(f"✅ 批量完成: {success}/{len(md_files)}")
-    else:
-        convert_md_to_pdf(input_path, sys.argv[2] if len(sys.argv) > 2 else None)

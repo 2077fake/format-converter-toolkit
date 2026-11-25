@@ -1,99 +1,74 @@
-# 📦 格式转换工具箱
+# 格式转换工具箱
 
-基于 Qt (PySide6) 的文档格式转换桌面应用，支持 Markdown、Word、PDF 三种格式之间的转换。
+Markdown · Word · PDF 互转的桌面应用，同时提供命令行。针对中文排版与 LaTeX 公式做了专门处理。
 
-当前版本：**4.1.1**
+当前版本：**4.2.0**
 
-[![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
-[![PySide6](https://img.shields.io/badge/PySide6-6.5+-green.svg)](https://doc.qt.io/qtforpython-6/)
-[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![架构](docs/architecture.png)
 
-## 安装
+## 快速开始
 
 ```bash
-pip install PySide6 python-docx PyMuPDF
+python -m venv .venv
+.venv\Scripts\activate            # Windows
+pip install -r requirements.txt
+
+python main.py                    # 打开桌面应用（等价于 python -m format_converter）
 ```
 
-## 开发
-
-```bash
-python -m pip install -r requirements.txt
-python -m pytest
-python main.py
-```
-
-## 桌面应用（推荐）
-
-```bash
-python main.py
-```
+桌面应用里选一个转换方向，点击卡片选文件，或直接把文件拖到卡片上。设置里可切换 Paper 浅色 / Ink 深色主题。
 
 ## 命令行
 
 ```bash
-# Markdown → Word
-python md_to_docx.py input.md [output.docx]
-
-# Word → Markdown
-python docx_to_md.py input.docx [output.md]
-
-# Markdown → PDF
-python md_to_pdf.py input.md [output.pdf]
-
-# PDF → Markdown
-python pdf_to_md.py input.pdf [output.md]
+python -m format_converter convert a.md --to docx
+python -m format_converter convert a.md --to pdf -o out/a.pdf
+python -m format_converter convert report.docx --to md
+python -m format_converter convert docs/ --from md --to pdf     # 批量转换整个目录
 ```
 
-### 批量转换
-
-```bash
-python md_to_docx.py ./input_dir/ --batch
-python md_to_pdf.py ./input_dir/ --batch
-python docx_to_md.py ./input_dir/ --batch
-python pdf_to_md.py ./input_dir/ --batch
-```
+`pip install -e .` 之后也可以直接使用 `format-converter` 命令。
 
 ## 转换方向
 
-| 工具 | 方向 | 说明 |
-|------|------|------|
-| `md_to_docx.py` | Markdown → Word | 支持 LaTeX 公式、表格、代码块、超链接 |
-| `docx_to_md.py` | Word → Markdown | 保留标题、格式、列表、表格 |
-| `md_to_pdf.py` | Markdown → PDF | A4 排版，支持中文混排和 LaTeX 公式 |
-| `pdf_to_md.py` | PDF → Markdown | 智能识别标题、格式和表格 |
+| 方向 | 说明 |
+|---|---|
+| Markdown → Word | LaTeX 公式、表格、代码块、可点击超链接 |
+| Word → Markdown | 标题层级、粗斜体、列表、表格、代码块 |
+| Markdown → PDF | A4 排版，中英文混排，自动分页 |
+| PDF → Markdown | 按字号识别标题，识别粗斜体与表格 |
 
-## LaTeX 公式
-
-支持行内 `$...$` 和块级 `$$...$$` 公式，例如：
-
-| LaTeX | 结果 |
-|-------|------|
-| `$\alpha + \beta = \gamma$` | α + β = γ |
-| `$\int_0^\infty e^{-x^2} dx$` | ∫₀^∞ e⁻ˣ² dx |
-
-## 架构
-
-![格式转换工具箱架构](docs/architecture.png)
+LaTeX 支持行内 `$...$` 与块级 `$$...$$`，会被简化为可读的 Unicode 文本，例如 `$\alpha + \beta$` → `α + β`。
 
 ## 项目结构
 
+```text
+format_converter/
+├── core/
+│   ├── registry.py      # 转换方向注册表 + run_conversion（GUI 与 CLI 共用，无 Qt 依赖）
+│   ├── markdown.py      # 共享的 Markdown 解析
+│   └── latex.py         # LaTeX → Unicode 简化
+├── converters/          # md_to_docx / docx_to_md / md_to_pdf / pdf_to_md，按需懒加载
+├── ui/                  # PySide6 界面：theme / widgets / main_window / settings_dialog / config
+├── cli.py               # 命令行入口
+└── errors.py            # ConversionError、DependencyMissingError
+main.py                  # 启动器
+samples/                 # 示例文件
+tests/                   # pytest
 ```
-format-converter-toolkit/
-├── main.py              # GUI 桌面应用主入口
-├── version.py           # 集中维护版本号
-├── md_to_docx.py        # Markdown → Word
-├── docx_to_md.py        # Word → Markdown
-├── md_to_pdf.py         # Markdown → PDF
-├── pdf_to_md.py         # PDF → Markdown
-├── latex_utils.py       # LaTeX 公式简化工具
-├── shared_parse.py      # 共享 Markdown 解析模块
-├── requirements.txt     # Python 依赖
-└── tests/               # 单元测试
+
+设计要点：转换器只做转换，出错抛异常而不是 `print + sys.exit`；缺少依赖（如 PyMuPDF）只影响对应方向，不影响程序启动；用户配置保存在 `%APPDATA%\format-converter-toolkit\config.json`，不再写进源码目录。
+
+## 开发
+
+```bash
+pip install -r requirements.txt pytest
+python -m pytest
 ```
 
 ## 版本记录
 
-详见 [CHANGELOG.md](CHANGELOG.md)。
+见 [CHANGELOG.md](CHANGELOG.md)。
 
 ## License
 

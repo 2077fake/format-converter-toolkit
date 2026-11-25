@@ -1,10 +1,7 @@
 """Unit tests for latex_utils."""
 
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
-
 import pytest
-from latex_utils import simplify_tex, _LATEX_TO_UNICODE
+from format_converter.core.latex import simplify_tex, _LATEX_TO_UNICODE
 
 
 class TestSimplifyTexBasic:

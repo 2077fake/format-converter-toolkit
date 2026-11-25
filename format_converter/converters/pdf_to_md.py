@@ -1,6 +1,5 @@
 """
 PDF 转 Markdown 工具
-用法: python pdf_to_md.py input.pdf [output.md]
 
 功能：
 - 提取文本内容并按页组织
@@ -11,8 +10,13 @@ PDF 转 Markdown 工具
 - 页间分隔标记
 """
 
+import logging
+
+from ..errors import DependencyMissingError
+
+log = logging.getLogger(__name__)
+
 import re
-import sys
 import os
 
 
@@ -21,9 +25,8 @@ def _check_fitz():
     try:
         import fitz
         return fitz
-    except ImportError:
-        print("❌ 需要安装 PyMuPDF: pip install PyMuPDF")
-        sys.exit(1)
+    except ImportError as exc:
+        raise DependencyMissingError("PyMuPDF", "fitz") from exc
 
 
 # ==================== 文本块结构 ====================
@@ -408,14 +411,13 @@ def convert_pdf_to_md(input_path: str, output_path: str = None) -> str:
     fitz = _check_fitz()
 
     if not os.path.exists(input_path):
-        print(f"❌ 文件不存在: {input_path}")
-        sys.exit(1)
+        raise FileNotFoundError(input_path)
 
     if output_path is None:
         output_path = os.path.splitext(input_path)[0] + '.md'
 
     doc = fitz.open(input_path)
-    print(f"📖 已读取: {input_path} ({doc.page_count} 页)")
+    log.info(f"📖 已读取: {input_path} ({doc.page_count} 页)")
 
     md_lines = []
     all_sizes = []
@@ -433,7 +435,7 @@ def convert_pdf_to_md(input_path: str, output_path: str = None) -> str:
         base_size = all_sizes[len(all_sizes) // 2]
         base_size = max(9, min(14, base_size))
 
-    print(f"📐 检测正文字号: {base_size:.1f}pt")
+    log.info(f"📐 检测正文字号: {base_size:.1f}pt")
 
     md_lines.append(f'# {os.path.splitext(os.path.basename(input_path))[0]}')
     md_lines.append('')
@@ -549,43 +551,8 @@ def convert_pdf_to_md(input_path: str, output_path: str = None) -> str:
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(result)
 
-    print(f"📊 共处理 {total_blocks} 个元素")
-    print(f"✅ 已生成: {output_path}")
+    log.info(f"📊 共处理 {total_blocks} 个元素")
+    log.info(f"✅ 已生成: {output_path}")
     return output_path
 
 
-# ==================== 入口 ====================
-
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print('📝 PDF → Markdown 转换工具')
-        print(f'用法: python {os.path.basename(__file__)} <input.pdf> [output.md]')
-        print(f'      python {os.path.basename(__file__)} <input_dir> --batch')
-        print('示例:')
-        print('  python pdf_to_md.py 报告.pdf')
-        print('  python pdf_to_md.py 报告.pdf 报告.md')
-        print('  python pdf_to_md.py ./pdf_files/ --batch')
-        sys.exit(0)
-
-    input_path = sys.argv[1]
-    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
-        import glob
-        input_dir = input_path
-        if not os.path.isdir(input_dir):
-            print(f"❌ 目录不存在: {input_dir}")
-            sys.exit(1)
-        pdf_files = glob.glob(os.path.join(input_dir, '*.pdf'))
-        if not pdf_files:
-            print(f"❌ 目录中未找到 .pdf 文件: {input_dir}")
-            sys.exit(1)
-        print(f"📦 批量转换 {len(pdf_files)} 个文件...")
-        success = 0
-        for f in pdf_files:
-            try:
-                convert_pdf_to_md(f)
-                success += 1
-            except Exception as e:
-                print(f"❌ 转换失败 {f}: {e}")
-        print(f"✅ 批量完成: {success}/{len(pdf_files)}")
-    else:
-        convert_pdf_to_md(input_path, sys.argv[2] if len(sys.argv) > 2 else None)

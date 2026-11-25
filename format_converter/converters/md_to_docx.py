@@ -1,18 +1,20 @@
 """
 Markdown 转 Word 文档工具（支持 LaTeX 公式）
-用法: python md_to_docx.py input.md [output.docx]
 """
 
+import logging
+
+log = logging.getLogger(__name__)
+
 import re
-import sys
 import os
 from docx import Document
 from docx.shared import Pt, RGBColor, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml.ns import qn
 from docx.oxml import parse_xml
-from latex_utils import simplify_tex
-from shared_parse import _merge_display_math, parse_markdown
+from ..core.latex import simplify_tex
+from ..core.markdown import _merge_display_math, parse_markdown
 
 # ==================== 字体全局配置 ====================
 BODY_FONT = '微软雅黑'
@@ -319,8 +321,7 @@ def add_elements_to_doc(doc: Document, elements: list):
 def convert_md_to_docx(input_path: str, output_path: str = None):
     """主函数"""
     if not os.path.exists(input_path):
-        print(f"❌ 文件不存在: {input_path}")
-        sys.exit(1)
+        raise FileNotFoundError(input_path)
 
     if output_path is None:
         output_path = os.path.splitext(input_path)[0] + '.docx'
@@ -329,10 +330,10 @@ def convert_md_to_docx(input_path: str, output_path: str = None):
         content = f.read()
 
     lines = content.splitlines()
-    print(f"📖 已读取: {input_path} ({len(lines)} 行)")
+    log.info(f"📖 已读取: {input_path} ({len(lines)} 行)")
 
     elements = parse_markdown(lines)
-    print(f"🔍 解析出 {len(elements)} 个元素")
+    log.info(f"🔍 解析出 {len(elements)} 个元素")
 
     doc = Document()
     setup_styles(doc)
@@ -343,41 +344,5 @@ def convert_md_to_docx(input_path: str, output_path: str = None):
     add_elements_to_doc(doc, elements)
 
     doc.save(output_path)
-    print(f"✅ 已生成: {output_path}")
+    log.info(f"✅ 已生成: {output_path}")
     return output_path
-
-
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print("📝 Markdown → Word 转换工具 (支持 LaTeX 公式)")
-        print(f"用法: python {os.path.basename(__file__)} <input.md> [output.docx]")
-        print(f"      python {os.path.basename(__file__)} <input_dir> --batch")
-        print()
-        print("示例:")
-        print(f"  python {os.path.basename(__file__)} readme.md")
-        print(f"  python {os.path.basename(__file__)} readme.md 输出.docx")
-        print(f"  python {os.path.basename(__file__)} ./markdown_files/ --batch")
-        sys.exit(0)
-
-    input_path = sys.argv[1]
-    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
-        import glob
-        input_dir = input_path
-        if not os.path.isdir(input_dir):
-            print(f"❌ 目录不存在: {input_dir}")
-            sys.exit(1)
-        md_files = glob.glob(os.path.join(input_dir, '*.md'))
-        if not md_files:
-            print(f"❌ 目录中未找到 .md 文件: {input_dir}")
-            sys.exit(1)
-        print(f"📦 批量转换 {len(md_files)} 个文件...")
-        success = 0
-        for f in md_files:
-            try:
-                convert_md_to_docx(f)
-                success += 1
-            except Exception as e:
-                print(f"❌ 转换失败 {f}: {e}")
-        print(f"✅ 批量完成: {success}/{len(md_files)}")
-    else:
-        convert_md_to_docx(input_path, sys.argv[2] if len(sys.argv) > 2 else None)

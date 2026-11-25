@@ -1,15 +1,19 @@
 __pycache__/
 *.pyc
 *.pyo
-app_config.json
-conversion_history.json
-*.docx
-*.pdf
-/dist/
-/build/
-*.egg-info/
 .venv/
 venv/
-资源/*_output.*
-资源/*_roundtrip.*
-资源/*_from_pdf.*
+.pytest_cache/
+*.egg-info/
+/dist/
+/build/
+
+# 用户配置现保存在 %APPDATA%，旧版遗留文件一并忽略
+app_config.json
+conversion_history.json
+
+# 转换产物（samples 里受版本管理的示例除外）
+*.docx
+*.pdf
+!samples/*.docx
+!samples/*.pdf

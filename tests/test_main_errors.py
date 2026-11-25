@@ -1,30 +1,26 @@
-"""Tests for improved batch conversion error handling in main.py."""
+"""Tests for conversion error handling in core.registry."""
 
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
-from main import _run_conversion, _ConversionResult, ConversionError
+from format_converter.core.registry import run_conversion, ConversionResult, ConversionError
 
 
 class TestConversionResult:
     def test_success(self):
-        r = _ConversionResult(True, output_path="/out.pdf")
+        r = ConversionResult(True, output_path="/out.pdf")
         assert r.success is True
         assert r.output_path == "/out.pdf"
         assert r.error == ""
 
     def test_failure(self):
-        r = _ConversionResult(False, error="test error", converter="md→pdf")
+        r = ConversionResult(False, error="test error", converter="md→pdf")
         assert r.success is False
         assert r.error == "test error"
         assert r.converter == "md→pdf"
 
 
 class TestRunConversion:
-    """Test _run_conversion error classification."""
+    """Test run_conversion error classification."""
 
     def test_file_not_found(self):
         """Nonexistent input file should give a FileNotFoundError result."""
@@ -32,7 +28,7 @@ class TestRunConversion:
             def convert(self, *a, **kw):
                 raise FileNotFoundError("no such file: /no/such/file.md")
 
-        result = _run_conversion(FakeTask(), "/no/such/file.md", "/out.pdf")
+        result = run_conversion(FakeTask(), "/no/such/file.md", "/out.pdf")
         assert result.success is False
         assert "不存在" in result.error
         assert result.converter == "FakeTask"
@@ -43,7 +39,7 @@ class TestRunConversion:
             def convert(self, *a, **kw):
                 raise PermissionError("access denied")
 
-        result = _run_conversion(FakeTask(), "/in.md", "/no/write/out.pdf")
+        result = run_conversion(FakeTask(), "/in.md", "/no/write/out.pdf")
         assert result.success is False
         assert "权限" in result.error
 
@@ -53,7 +49,7 @@ class TestRunConversion:
             def convert(self, *a, **kw):
                 raise ValueError("bad input")
 
-        result = _run_conversion(FakeTask(), "/in.md", "/out.pdf")
+        result = run_conversion(FakeTask(), "/in.md", "/out.pdf")
         assert result.success is False
         assert "ValueError" in result.error
         assert "bad input" in result.error
@@ -64,7 +60,7 @@ class TestRunConversion:
             def convert(self, *a, **kw):
                 raise RuntimeError("")
 
-        result = _run_conversion(FakeTask(), "/in.md", "/out.pdf")
+        result = run_conversion(FakeTask(), "/in.md", "/out.pdf")
         assert result.success is False
         assert result.error == "RuntimeError: "
 

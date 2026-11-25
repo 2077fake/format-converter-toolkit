@@ -1,6 +1,5 @@
 """
 Word (.docx) 转 Markdown 工具
-用法: python docx_to_md.py input.docx [output.md]
 
 功能：
 - 标题 → # ## ### 等
@@ -11,8 +10,11 @@ Word (.docx) 转 Markdown 工具
 - 超链接
 """
 
+import logging
+
+log = logging.getLogger(__name__)
+
 import re
-import sys
 import os
 from docx import Document
 from docx.oxml.ns import qn
@@ -225,14 +227,13 @@ def _is_code_block_paragraph(paragraph) -> bool:
 def convert_docx_to_md(input_path: str, output_path: str = None) -> str:
     """主转换函数"""
     if not os.path.exists(input_path):
-        print(f"❌ 文件不存在: {input_path}")
-        sys.exit(1)
+        raise FileNotFoundError(input_path)
 
     if output_path is None:
         output_path = os.path.splitext(input_path)[0] + '.md'
 
     doc = Document(input_path)
-    print(f"📖 已读取: {input_path}")
+    log.info(f"📖 已读取: {input_path}")
 
     md_lines = []
     in_code_block = False
@@ -336,7 +337,7 @@ def convert_docx_to_md(input_path: str, output_path: str = None) -> str:
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(result)
 
-    print(f"✅ 已生成: {output_path}")
+    log.info(f"✅ 已生成: {output_path}")
     return output_path
 
 
@@ -377,43 +378,3 @@ def _iter_block_items(parent):
             yield Table(child, parent)
 
 
-# ==================== 入口 ====================
-
-if __name__ == '__main__':
-    if len(sys.argv) < 2:
-        print('📝 Word → Markdown 转换工具')
-        print(f'用法: python {os.path.basename(__file__)} <input.docx> [output.md]')
-        print(f'      python {os.path.basename(__file__)} <input_dir> --batch')
-        print('示例:')
-        print('  python docx_to_md.py 报告.docx')
-        print('  python docx_to_md.py 报告.docx 报告.md')
-        print('  python docx_to_md.py ./docx_files/ --batch')
-        sys.exit(0)
-
-    input_path = sys.argv[1]
-    if len(sys.argv) > 2 and sys.argv[2] == '--batch':
-        import glob
-        input_dir = input_path
-        if not os.path.isdir(input_dir):
-            print(f"❌ 目录不存在: {input_dir}")
-            sys.exit(1)
-        docx_files = glob.glob(os.path.join(input_dir, '*.docx'))
-        if not docx_files:
-            print(f"❌ 目录中未找到 .docx 文件: {input_dir}")
-            sys.exit(1)
-        print(f"📦 批量转换 {len(docx_files)} 个文件...")
-        success = 0
-        for f in docx_files:
-            try:
-                convert_docx_to_md(f)
-                success += 1
-            except Exception as e:
-                print(f"❌ 转换失败 {f}: {e}")
-        print(f"✅ 批量完成: {success}/{len(docx_files)}")
-    else:
-        convert_docx_to_md(input_path, sys.argv[2] if len(sys.argv) > 2 else None)
-        sys.exit(0)
-
-    input_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
-    convert_docx_to_md(input_file, output_file)

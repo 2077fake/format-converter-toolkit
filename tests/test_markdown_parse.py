@@ -1,16 +1,12 @@
 """Unit tests for Markdown parsing functions."""
 
-import sys
-import os
-
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import pytest
-from md_to_docx import (
+from format_converter.converters.md_to_docx import (
     parse_markdown as parse_md_docx,
     _merge_display_math as merge_math_docx,
 )
-from md_to_pdf import (
+from format_converter.converters.md_to_pdf import (
     parse_markdown as parse_md_pdf,
     _merge_display_math as merge_math_pdf,
     _parse_inline as parse_inline_pdf,

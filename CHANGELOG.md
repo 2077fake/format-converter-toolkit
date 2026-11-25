@@ -2,6 +2,27 @@
 
 本文件记录格式转换工具箱的重要版本变更。
 
+## [4.2.0] - 2026-11-25
+
+### 重构
+
+- 拆分为 `format_converter` 包：`core`（注册表、Markdown 解析、LaTeX 简化）、`converters`、`ui`、`cli`。
+- 转换器不再 `print + sys.exit`，改为抛出异常并通过 `logging` 输出进度；缺少 PyMuPDF 等依赖只影响对应方向。
+- 转换方向统一由 `core/registry.py` 注册并懒加载，GUI 与 CLI 共用 `run_conversion`。
+- 四个脚本各自的 `__main__` 命令行合并为统一入口：`python -m format_converter convert ...`。
+- 用户配置迁移到 `%APPDATA%\format-converter-toolkit\config.json`。
+- 新增 `pyproject.toml`；示例文件移入 `samples/`。
+
+### 界面
+
+- 全新的 Paper / Ink 主题（奶油底、黑描边、橙色强调），与 MCU-Forge 工作台风格一致。
+- 转换卡片支持拖入文件与键盘操作；转换在线程池中执行。
+- 状态条与转换记录面板取代弹窗；可选“成功后自动打开所在文件夹”。
+
+### 测试
+
+- 新增注册表、CLI 往返转换与配置的测试。
+
 ## [4.1.1] - 2026-09-24
 
 ### 修复
